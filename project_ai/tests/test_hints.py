@@ -62,11 +62,15 @@ def test_hmdm_requirements(hmdm):
     # .tool-versions (EXPLICIT) gana; CI y docs coinciden en 8
     assert r["jdk"].value == "8" and r["jdk"].priority == P.EXPLICIT
     assert len(r["jdk"].evidence) >= 3
-    # la imagen de Tomcat es de runtime
-    assert r["jdk_runtime"].value == "11" and r["jdk_runtime"].priority == P.CI
+    # la imagen de Tomcat es de runtime; el Dockerfile raíz gana al anidado sin conflicto
+    assert r["jdk_runtime"].value == "8" and r["jdk_runtime"].priority == P.CI
+    assert any(a["value"] == "11" for a in r["jdk_runtime"].alternatives)
     assert r["tomcat"].value == "9" and r["tomcat"].priority == P.CI
     assert r["maven"].value == "3.8.8"
     assert any(a["value"] == "3.6" for a in r["maven"].alternatives)
+    # el Tomcat del IDE describe la máquina local, no es un requisito
+    assert not any(a["value"] == "10.1" for a in r["tomcat"].alternatives)
+    assert hmdm.facts["ide.tomcat_local"].value == "10.1"
 
 
 def test_hmdm_services_and_facts(hmdm):
@@ -88,6 +92,38 @@ def test_hmdm_commands(hmdm):
     assert ("docs", "mvn install") in cmds
     assert ("docs", "./hmdm_install.sh") in cmds
     assert not any("apt-get" in c for _, c in cmds)          # no es comando de build
+
+
+def test_hmdm_command_kinds_dedup_and_multiline(hmdm):
+    by_cmd = {c["cmd"]: c for c in hmdm.facts["hints.commands"].value}
+    assert by_cmd["mvn clean install -pl common,jwt,notification,plugins -am -DskipTests"][
+        "kind"] == "build"
+    assert by_cmd["mvn clean package"]["kind"] == "build"
+    assert by_cmd["./hmdm_install.sh"]["kind"] == "script"
+    assert len(by_cmd["./hmdm_install.sh"]["sources"]) == 2           # deduplicado
+    joined = "docker exec mqtt-connections mosquitto_passwd -b /mosquitto/config/passwd user secret"
+    assert by_cmd[joined]["kind"] == "ops"                           # multilínea unido
+
+
+def test_hmdm_undefined_containers(hmdm):
+    assert hmdm.facts["hints.undefined_containers"].value == ["mqtt-connections"]
+
+
+@pytest.mark.parametrize("cmd,kind", [
+    ("conan install . --build=missing -s build_type=Debug", "deps"),
+    ("rm -rf build/CMakeCache.txt && cmake -B build -S .", "configure"),
+    ("cmake --build build", "build"),
+    ("ctest --test-dir build", "test"),
+    ("./gradlew test", "test"),
+    ("mvn -B verify", "test"),
+    ("./mvnw spring-boot:run", "run"),
+    ("docker-compose -f docker/db/docker-compose.yml up -d", "run"),
+    ("docker restart mqtt-connections", "ops"),
+    ("./step_001_create_image_and_publish.sh", "script"),
+])
+def test_classify_cmd(cmd, kind):
+    from project_ai.adapters.base import classify_cmd
+    assert classify_cmd(cmd) == kind
 
 
 def test_multistage_dockerfile(tmp_path):

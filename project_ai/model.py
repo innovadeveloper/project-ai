@@ -204,7 +204,18 @@ class ProjectInfo:
             current.alternatives.append(_alt(fact))
             return current
 
-        # misma prioridad, distinto valor
+        # misma prioridad, distinto valor: gana el archivo más cercano a la raíz
+        # (p.ej. ./Dockerfile frente a docker/legacy-0.1/Dockerfile)
+        d_cur, d_new = _min_depth(current), _min_depth(fact)
+        if d_new < d_cur:
+            fact.alternatives.append(_alt(current))
+            fact.alternatives.extend(current.alternatives)
+            self.requirements[key] = fact
+            return fact
+        if d_new > d_cur:
+            current.alternatives.append(_alt(fact))
+            return current
+
         current.status = Status.CONFLICT
         current.alternatives.append(_alt(fact))
         self.warnings.append(
@@ -320,6 +331,10 @@ class ProjectInfo:
 
 def _same_value(a: Any, b: Any) -> bool:
     return str(a).strip().lower() == str(b).strip().lower()
+
+
+def _min_depth(f: Fact) -> int:
+    return min((e.file.count("/") for e in f.evidence), default=99)
 
 
 def _alt(f: Fact) -> dict:

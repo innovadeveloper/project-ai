@@ -45,7 +45,7 @@ NETCLIENT = {
     "main.cpp": "int main() { return 0; }\n",
     "include/netclient/client.h": "#pragma once\nclass Client {};\n",
     "src/client.cpp": '#include "netclient/client.h"\n',
-    "readme.md": "# netclient\n\n```bash\nconan install . --build=missing\n"
+    "readme.md": "# netclient\n\n```bash\nconan install . \\\n  --build=missing\n"
                  "cmake --preset conan-debug\ncmake --build --preset conan-debug\n```\n",
     "new_module_c++.sh": "#!/bin/sh\necho new\n",
     "bin/run.sh": "#!/bin/sh\n./build/Debug/netclient\n",      # bin legítimo
@@ -73,20 +73,29 @@ HMDM = {
     "server/src/main/webapp/WEB-INF/web.xml": "<web-app/>\n",
     "server/src/main/java/com/hmdm/App.java": "class App {}\n",
     "context.xml": "<Context/>\n",
-    ".smarttomcat/hmdm/config.xml": "<option name='tomcat' value='/opt/apache-tomcat-9.0.71'/>\n",
+    ".smarttomcat/server/conf/web.xml": "<!-- Apache Tomcat 10.1 default web.xml -->\n",
+    "README.md": "## Build\n\n```bash\n"
+                 "mvn clean install -pl common,jwt,notification,plugins -am -DskipTests\n"
+                 "mvn clean package -pl server -am -DskipTests\n```\n\n"
+                 "```bash\ndocker exec mqtt-connections mosquitto_passwd -b \\\n"
+                 "    /mosquitto/config/passwd user secret\n"
+                 "docker exec -it hmdm_db_prod psql -U hmdm -d hmdm\n```\n",
+    "docker/hmdm-docker-0.1.5/Dockerfile": "FROM tomcat:9-jdk11-temurin-jammy\n",
     "BUILD.txt": "Requirements: Java 8 and Maven 3.6\n\nTo build:\n\n"
                  "    mvn install\n\nThen copy the war file.\n",
     "INSTALL.txt": "Install PostgreSQL 13 and Tomcat 9 first.\n"
                    "$ sudo ./hmdm_install.sh\n",
+    "BUILD2.txt": "Same as INSTALL:\n    ./hmdm_install.sh\n",
     "TROUBLESHOOTING.txt": "If the build fails, check JAVA_HOME.\n",
     "LICENSE": "Apache License 2.0 java 11 should be ignored\n",
     "hmdm_install.sh": "#!/bin/bash\n",
-    "Dockerfile": "ARG BASE=tomcat:9-jdk11-openjdk\nFROM ${BASE}\n"
+    "Dockerfile": "ARG BASE=tomcat:9-jdk8-openjdk\nFROM ${BASE}\n"
                   "RUN apt-get update && \\\n    apt-get install -y aapt\n"
                   "COPY server/target/launcher.war /usr/local/tomcat/webapps/ROOT.war\n"
                   "EXPOSE 8080 8443/tcp\n",
     "docker/hmdm-docker/docker-compose.yaml":
-        "services:\n  db:\n    image: postgres:13\n  app:\n    image: headwindmdm/hmdm:0.1.5\n",
+        "services:\n  db:\n    image: postgres:13\n    container_name: hmdm_db_prod\n"
+        "  app:\n    image: headwindmdm/hmdm:0.1.5\n",
     "docker/postgres_only/docker-compose.yml": 'services:\n  db:\n    image: "postgres:12-alpine"\n',
     "docker/postgres_only/.env.example": "DB_PASS=\n",
     ".github/workflows/build.yml":

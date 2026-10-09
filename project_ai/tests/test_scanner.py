@@ -37,11 +37,11 @@ def test_hmdm_key_files(tmp_path):
     kf = sc.key_files()
     assert {"BUILD.txt", "INSTALL.txt", "TROUBLESHOOTING.txt"} <= set(kf["docs"])
     assert "LICENSE" not in kf["docs"]
-    assert ".smarttomcat/hmdm/config.xml" in kf["ide"]
+    assert ".smarttomcat/server/conf/web.xml" in kf["ide"]
     assert "context.xml" in kf["config"]
     assert "server/src/main/webapp/WEB-INF/web.xml" in kf["config"]
     assert "hmdm_install.sh" in kf["scripts"]
-    assert len(kf["container"]) == 3
+    assert len(kf["container"]) == 4
 
 
 def test_target_without_pom_is_kept(tmp_path):
@@ -54,7 +54,8 @@ def test_glob_semantics(tmp_path):
     assert sc.glob("**/pom.xml") == ["pom.xml", "common/pom.xml", "server/pom.xml"]
     assert sc.glob("*.xml") == ["context.xml", "pom.xml"]
     assert sc.glob("server/**/*.java") == ["server/src/main/java/com/hmdm/App.java"]
-    assert sc.glob("**/DOCKERFILE", icase=True) == ["Dockerfile"]
+    assert sc.glob("**/DOCKERFILE", icase=True) == [
+        "Dockerfile", "docker/hmdm-docker-0.1.5/Dockerfile"]
 
 
 def test_grep(tmp_path):

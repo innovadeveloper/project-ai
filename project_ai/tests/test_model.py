@@ -29,6 +29,16 @@ def test_same_priority_conflict():
     assert p.warnings
 
 
+def test_same_priority_root_file_wins():
+    p = ProjectInfo(root="/x")
+    p.add_requirement("jdk_runtime", Fact("11", P.CI,
+                      evidence=[Evidence("docker/legacy-0.1/Dockerfile", 3)]))
+    p.add_requirement("jdk_runtime", Fact("8", P.CI, evidence=[Evidence("Dockerfile", 8)]))
+    f = p.requirements["jdk_runtime"]
+    assert f.value == "8" and f.status == Status.INFERRED and not p.warnings
+    assert f.alternatives[0]["value"] == "11"
+
+
 def test_services_merge():
     p = ProjectInfo(root="/x")
     p.add_service("postgresql", Fact("13", P.CI, evidence=[Evidence("a.yml", 3)]))
