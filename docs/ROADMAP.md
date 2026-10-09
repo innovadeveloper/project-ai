@@ -181,11 +181,11 @@ Reglas iniciales mínimas (escribirlas con tests): JDK incorrecto, lombok/JDK,
   adaptador sirve para medir el alcance.
 - Endpoints Spring en Kotlin (`@GetMapping` en `fun`).
 
-## Fase E — Python y C# ⏳
-- `python.py`: pyproject (PEP 621/poetry/uv/hatch), requirements*.txt,
+## Fase E — Python y C# 🔜
+- ✅ `python.py`: pyproject (PEP 621/poetry/uv/hatch), requirements*.txt,
   setup.py, `.python-version`, `requires-python`; framework (FastAPI, Django,
-  Flask) → entry points y endpoints (`@app.get`, `urls.py`); comandos con uv
-  si hay `uv.lock`, poetry si `poetry.lock`, si no `python -m venv` + pip.
+  Flask) → entry points y endpoints; comandos con uv/poetry/pip; endpoints
+  FastAPI con prefijos de include_router, Flask @route, Django urls.py.
 - `dotnet.py`: `.sln`, `.csproj` (`TargetFramework` net8.0 → dotnet 8),
   `global.json` (ya en hints), ASP.NET (`Program.cs`, `MapGet`, controllers
   `[HttpGet]`), comandos `dotnet restore/build/test/run`, `launchSettings.json`

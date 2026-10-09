@@ -205,7 +205,7 @@ class TestSetupAgent:
     def test_contains_opencode_section(self, tmp_path):
         make_tree(tmp_path, HMDM)
         result = setup_agent(tmp_path, write=False)
-        assert "OpenCode" in result
+        assert "opencode.json" in result
         assert "opencode.ai" in result
 
     def test_contains_serena_section(self, tmp_path):
@@ -213,6 +213,33 @@ class TestSetupAgent:
         result = setup_agent(tmp_path, write=False)
         assert "Serena" in result
         assert "serena" in result.lower()
+
+    def test_lsp_true_in_config(self, tmp_path):
+        """El campo lsp:true debe estar en el JSON combinado."""
+        make_tree(tmp_path, HMDM)
+        result = setup_agent(tmp_path, write=False)
+        assert '"lsp": true' in result
+
+    def test_enabled_true_in_mcp(self, tmp_path):
+        """El servidor MCP de Serena debe tener enabled:true."""
+        make_tree(tmp_path, HMDM)
+        result = setup_agent(tmp_path, write=False)
+        assert '"enabled": true' in result
+
+    def test_single_json_block(self, tmp_path):
+        """OpenCode y Serena deben estar en UN solo bloque JSON."""
+        import json as _json
+        make_tree(tmp_path, HMDM)
+        result = setup_agent(tmp_path, write=False)
+        # Extraer el primer bloque ```json ... ```
+        start = result.index("```json\n") + len("```json\n")
+        end = result.index("\n```", start)
+        cfg = _json.loads(result[start:end])
+        assert "model" in cfg
+        assert "mcp" in cfg
+        assert "serena" in cfg["mcp"]
+        assert cfg["lsp"] is True
+        assert cfg["mcp"]["serena"]["enabled"] is True
 
     def test_maven_stack_uses_jdtls(self, tmp_path):
         make_tree(tmp_path, HMDM)

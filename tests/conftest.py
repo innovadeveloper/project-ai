@@ -646,3 +646,219 @@ SMARTTOMCAT_FP = {
     ),
     ".smarttomcat/server/conf/server.xml": '<Server port="8005"></Server>\n',
 }
+
+# ---------------------------------------------------------------------------
+# Fixtures Python
+# ---------------------------------------------------------------------------
+
+# FastAPI con uv (pyproject.toml PEP 621 + uv.lock)
+FASTAPI_UV = {
+    "pyproject.toml": """\
+[project]
+name = "myapi"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "sqlalchemy>=2.0",
+    "psycopg2-binary>=2.9",
+]
+
+[project.scripts]
+myapi = "myapi.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = ["pytest>=8", "httpx>=0.27"]
+""",
+    "uv.lock": "# uv lockfile v1\n",
+    ".python-version": "3.11\n",
+    "myapi/__init__.py": "",
+    "myapi/main.py": """\
+from fastapi import FastAPI
+from myapi.routers import devices, auth
+
+app = FastAPI(title="MyAPI")
+app.include_router(devices.router, prefix="/api/devices")
+app.include_router(auth.router, prefix="/api/auth")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+""",
+    "myapi/routers/__init__.py": "",
+    "myapi/routers/devices.py": """\
+from fastapi import APIRouter
+
+router = APIRouter()
+
+@router.get("/")
+def list_devices():
+    return []
+
+@router.get("/{device_id}")
+def get_device(device_id: int):
+    return {"id": device_id}
+
+@router.post("/")
+def create_device():
+    return {}
+
+@router.delete("/{device_id}")
+def delete_device(device_id: int):
+    return {}
+""",
+    "myapi/routers/auth.py": """\
+from fastapi import APIRouter
+
+router = APIRouter()
+
+@router.post("/login")
+def login():
+    return {"token": "xxx"}
+
+@router.post("/logout")
+def logout():
+    return {}
+""",
+    "README.md": """\
+## Desarrollo
+
+```bash
+uv run uvicorn myapi.main:app --reload
+uv run pytest
+```
+""",
+}
+
+# Django con poetry + PostgreSQL
+DJANGO_POETRY = {
+    "pyproject.toml": """\
+[tool.poetry]
+name = "mysite"
+version = "0.1.0"
+description = ""
+
+[tool.poetry.dependencies]
+python = "^3.10"
+Django = "^4.2"
+psycopg2-binary = "^2.9"
+djangorestframework = "^3.15"
+
+[tool.poetry.dev-dependencies]
+pytest-django = "^4.8"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+""",
+    "poetry.lock": "# Poetry lock\n",
+    "manage.py": """\
+#!/usr/bin/env python
+import os, sys
+
+def main():
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mysite.settings')
+    from django.core.management import execute_from_command_line
+    execute_from_command_line(sys.argv)
+
+if __name__ == '__main__':
+    main()
+""",
+    "mysite/__init__.py": "",
+    "mysite/settings.py": """\
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'mydb',
+        'HOST': 'localhost',
+        'PORT': '5432',
+    }
+}
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'rest_framework',
+    'devices',
+]
+""",
+    "mysite/urls.py": """\
+from django.urls import path, include
+
+urlpatterns = [
+    path('api/devices/', include('devices.urls')),
+    path('api/auth/', include('mysite.auth_urls')),
+]
+""",
+    "devices/views.py": """\
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+
+@api_view(['GET'])
+def list_devices(request):
+    return Response([])
+
+@api_view(['POST'])
+def create_device(request):
+    return Response({})
+""",
+    "devices/urls.py": """\
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('', views.list_devices),
+    path('create/', views.create_device),
+]
+""",
+}
+
+# Flask con requirements.txt (clásico, sin pyproject.toml)
+FLASK_REQS = {
+    "requirements.txt": """\
+Flask==3.0.3
+SQLAlchemy==2.0.30
+redis==5.0.4
+""",
+    "requirements-dev.txt": "pytest==8.2.0\n",
+    "app.py": """\
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/api/items', methods=['GET'])
+def list_items():
+    return []
+
+@app.route('/api/items', methods=['POST'])
+def create_item():
+    return {}
+
+@app.route('/api/items/<int:item_id>', methods=['GET'])
+def get_item(item_id):
+    return {}
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
+""",
+}
+
+# Proyecto Python mínimo: solo setup.py (legacy)
+PYTHON_SETUP_PY = {
+    "setup.py": """\
+from setuptools import setup, find_packages
+
+setup(
+    name="mylib",
+    version="0.1.0",
+    python_requires=">=3.8",
+    packages=find_packages(),
+    install_requires=["requests>=2.31"],
+)
+""",
+    "src/mylib/__init__.py": "",
+    "src/mylib/client.py": "class Client: pass\n",
+}

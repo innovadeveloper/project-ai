@@ -2,14 +2,12 @@
 setup_agent.py — Genera instrucciones de configuración para OpenCode + Serena.
 
 Escribe .project-ai/setup-agent.md con:
-  1. Configuración de OpenCode (JSON template para el proyecto).
-  2. Configuración de Serena por stack:
-       cmake  → clangd + --compile-commands-dir
-       maven  → jdtls
-       gradle → jdtls
-  3. Verificaciones rápidas (curl a los nodos, ollama ps).
+  1. Un único opencode.json combinado: modelo + proveedor Ollama + lsp:true + MCP Serena.
+  2. Prerrequisitos y notas por stack (compile_commands para C++, jdtls para Java).
+  3. Verificaciones rápidas (curl a los nodos).
+  4. Ejemplo de project-ai context.
 
-El archivo es copy-paste ready: el usuario copia los bloques que necesita.
+El archivo es copy-paste ready: el usuario copia opencode.json a la raíz del proyecto.
 """
 from __future__ import annotations
 
@@ -18,8 +16,8 @@ from pathlib import Path
 
 from .model import ProjectInfo
 
-OUTPUT_DIR   = ".project-ai"
-SETUP_FILE   = "setup-agent.md"
+OUTPUT_DIR = ".project-ai"
+SETUP_FILE = "setup-agent.md"
 
 
 def setup_agent(
@@ -67,9 +65,9 @@ def setup_agent(
 # --------------------------------------------------------------------------
 
 def _generate(root: Path, stacks: list[str], config) -> str:
-    n1_url  = config.n1.url
+    n1_url   = config.n1.url
     n1_model = config.n1.model
-    n2_url  = config.n2.url
+    n2_url   = config.n2.url
     n2_model = config.n2.model
 
     lines: list[str] = [
@@ -80,41 +78,72 @@ def _generate(root: Path, stacks: list[str], config) -> str:
         "",
     ]
 
-    # ---- 1. OpenCode -------------------------------------------------------
+    # ---- 1. opencode.json combinado ----------------------------------------
+    mcp_args = _serena_args(root, stacks)
+    opencode_cfg = _opencode_config(root, n1_url, n1_model, mcp_args)
+
     lines += [
-        "## 1. OpenCode",
+        "## 1. opencode.json",
         "",
-        "Copia `opencode.json` en la **raíz del proyecto** y abre OpenCode ahí.",
+        "Copia este archivo en la **raíz del proyecto** y abre OpenCode ahí.",
+        "Incluye el modelo, el proveedor Ollama y Serena (MCP + LSP) en un solo bloque.",
         "",
         "```json",
-    ]
-    opencode_cfg = _opencode_config(root, n1_url, n1_model)
-    lines.append(json.dumps(opencode_cfg, indent=2, ensure_ascii=False))
-    lines += [
+        json.dumps(opencode_cfg, indent=2, ensure_ascii=False),
         "```",
         "",
-        "> Cambia `model` y `url` si quieres usar el nodo N2 "
-        f"(`{n2_url}` / `{n2_model}`).",
+        f"> Para usar el nodo N2 cambia `model` a `ollama/{n2_model}` y `url` a `{n2_url}`.",
         "",
     ]
 
-    # ---- 2. Serena (MCP) ---------------------------------------------------
+    # ---- 2. Prerrequisitos por stack ----------------------------------------
     lines += [
-        "## 2. Serena (LSP vía MCP)",
-        "",
-        "Añade este bloque a la config MCP de tu agente "
-        "(Claude Desktop, OpenCode, etc.).",
+        "## 2. Prerrequisitos",
         "",
     ]
 
     if "cmake" in stacks:
-        lines += _serena_cmake(root)
-    if "maven" in stacks or "gradle" in stacks:
-        lines += _serena_jvm(root, stacks)
-    if not any(s in stacks for s in ("cmake", "maven", "gradle")):
-        lines += _serena_generic(root)
+        build_dir = _find_build_dir(root)
+        lines += [
+            "### C++ — compile_commands.json",
+            "",
+            "Serena usa clangd, que necesita `compile_commands.json` para indexar el proyecto.",
+            "Genera con:",
+            "",
+            "```bash",
+            "conan install . --build=missing -s build_type=Debug",
+            "cmake --preset conan-debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+            "```",
+            "",
+            f"> El archivo quedará en `{build_dir}/compile_commands.json`.",
+            "",
+        ]
 
-    # ---- 3. Verificaciones -------------------------------------------------
+    if "maven" in stacks or "gradle" in stacks:
+        bs = "Gradle" if "gradle" in stacks else "Maven"
+        lines += [
+            f"### Java — jdtls ({bs})",
+            "",
+            f"jdtls importará el proyecto {bs} automáticamente al arrancar Serena.",
+            "Instala si no lo tienes:",
+            "",
+            "```bash",
+            "brew install jdtls          # macOS",
+            "sudo apt install jdtls      # Ubuntu/Debian",
+            "```",
+            "",
+        ]
+
+    if not any(s in stacks for s in ("cmake", "maven", "gradle")):
+        lines += [
+            "### Stack genérico",
+            "",
+            "Serena arrancará sin LSP específico. Para mejor soporte instala el LSP",
+            "de tu lenguaje y añade `--lsp-binary <nombre>` a los args de Serena.",
+            "",
+        ]
+
+    # ---- 3. Verificaciones --------------------------------------------------
     lines += [
         "## 3. Verificaciones rápidas",
         "",
@@ -125,24 +154,21 @@ def _generate(root: Path, stacks: list[str], config) -> str:
         f"# N2 — {n2_url}",
         f"curl -s {n2_url}/api/tags | python3 -m json.tool | head -20",
         "",
-        "# Ver modelos cargados en el nodo activo",
+        "# Modelos cargados",
         f"curl -s {n1_url}/api/ps",
         "```",
         "",
-        "Si los nodos no responden, comprueba que Ollama esté corriendo "
-        "y que `OLLAMA_HOST=0.0.0.0` esté configurado.",
+        "Si los nodos no responden: `OLLAMA_HOST=0.0.0.0 ollama serve`.",
         "",
     ]
 
-    # ---- 4. project-ai context --------------------------------------------
+    # ---- 4. project-ai context ---------------------------------------------
     lines += [
         "## 4. Contexto bajo demanda",
         "",
         "```bash",
-        "# Genera un paquete de contexto para cualquier pregunta:",
+        "# Genera un paquete de contexto para pegar en cualquier chat:",
         f'project-ai context "cómo funciona el auth" --path {root}',
-        "",
-        "# Pega la salida directamente en tu chat con el modelo.",
         "```",
         "",
     ]
@@ -151,10 +177,12 @@ def _generate(root: Path, stacks: list[str], config) -> str:
 
 
 # --------------------------------------------------------------------------
-# Helpers de secciones
+# Constructores de config
 # --------------------------------------------------------------------------
 
-def _opencode_config(root: Path, n1_url: str, n1_model: str) -> dict:
+def _opencode_config(root: Path, n1_url: str, n1_model: str,
+                     mcp_args: list[str]) -> dict:
+    """Config combinada: modelo + Ollama + lsp:true + Serena MCP."""
     return {
         "$schema": "https://opencode.ai/config.schema.json",
         "model": f"ollama/{n1_model}",
@@ -164,90 +192,50 @@ def _opencode_config(root: Path, n1_url: str, n1_model: str) -> dict:
                 "url": n1_url,
             }
         },
-        "keybinds": {
-            "leader": "ctrl+a",
+        "lsp": True,
+        "mcp": {
+            "serena": {
+                "command": "uvx",
+                "args": mcp_args,
+                "enabled": True,
+            }
         },
     }
 
 
-def _serena_cmake(root: Path) -> list[str]:
-    """Instrucciones de Serena para C++ / clangd."""
+def _serena_args(root: Path, stacks: list[str]) -> list[str]:
+    """Devuelve los args de uvx serena según el stack detectado."""
+    if "cmake" in stacks:
+        return _serena_cmake_args(root)
+    if "maven" in stacks or "gradle" in stacks:
+        return _serena_jvm_args(root)
+    return _serena_generic_args(root)
+
+
+def _serena_cmake_args(root: Path) -> list[str]:
     build_dir = _find_build_dir(root)
-    compile_cmds = f"{build_dir}/compile_commands.json"
     return [
-        "### C++ — clangd",
-        "",
-        "```json",
-        json.dumps({
-            "mcpServers": {
-                "serena": {
-                    "command": "uvx",
-                    "args": [
-                        "serena",
-                        "--project-root", str(root),
-                        "--lsp-binary", "clangd",
-                        "--lsp-args", f"--compile-commands-dir={build_dir}",
-                    ],
-                }
-            }
-        }, indent=2),
-        "```",
-        "",
-        f"> `compile_commands.json` debe existir en `{compile_cmds}`.  ",
-        "> Genera con: `cmake --preset conan-debug "
-        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`",
-        "",
+        "serena",
+        "--project-root", str(root),
+        "--lsp-binary", "clangd",
+        "--lsp-args", f"--compile-commands-dir={build_dir}",
     ]
 
 
-def _serena_jvm(root: Path, stacks: list[str]) -> list[str]:
-    """Instrucciones de Serena para Java / jdtls."""
-    bs = "Gradle" if "gradle" in stacks else "Maven"
+def _serena_jvm_args(root: Path) -> list[str]:
     return [
-        f"### Java — jdtls ({bs})",
-        "",
-        "```json",
-        json.dumps({
-            "mcpServers": {
-                "serena": {
-                    "command": "uvx",
-                    "args": [
-                        "serena",
-                        "--project-root", str(root),
-                        "--lsp-binary", "jdtls",
-                    ],
-                }
-            }
-        }, indent=2),
-        "```",
-        "",
-        f"> jdtls importará el proyecto {bs} automáticamente al arrancar.  ",
-        "> Asegúrate de tener jdtls instalado: `brew install jdtls` (macOS) o "
-        "`sudo apt install jdtls` (Ubuntu).",
-        "",
+        "serena",
+        "--project-root", str(root),
+        "--lsp-binary", "jdtls",
     ]
 
 
-def _serena_generic(root: Path) -> list[str]:
-    return [
-        "### Configuración genérica",
-        "",
-        "```json",
-        json.dumps({
-            "mcpServers": {
-                "serena": {
-                    "command": "uvx",
-                    "args": ["serena", "--project-root", str(root)],
-                }
-            }
-        }, indent=2),
-        "```",
-        "",
-    ]
+def _serena_generic_args(root: Path) -> list[str]:
+    return ["serena", "--project-root", str(root)]
 
 
 def _find_build_dir(root: Path) -> str:
-    """Busca un directorio de build existente con compile_commands.json."""
+    """Busca el directorio de build con compile_commands.json."""
     candidates = [
         root / "build" / "Debug",
         root / "build",

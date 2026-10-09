@@ -111,10 +111,11 @@ Registro breve. No reabrir sin un motivo nuevo (p.ej. un proyecto real que lo co
     preguntas en español e inglés deben funcionar igual de bien. El límite de 3
     caracteres elimina artículos y preposiciones sin stoplist exhaustiva; la stoplist
     cubre los casos de alta frecuencia que sobrevivirían ese filtro ("cómo", "para", "the").
-34. **`setup_agent.py` genera un `.md` copy-paste ready**, no ejecuta comandos: el
-    usuario copia los bloques JSON que necesita. Esto sigue el principio "solo lectura
-    sobre el proyecto analizado" — el agente nunca toca `~/.config/opencode` ni el
-    archivo MCP del sistema.
+34. **`setup_agent.py` genera UN SOLO `opencode.json`** que combina modelo Ollama +
+    `"lsp": true` + bloque `"mcp": { "serena": { ..., "enabled": true } }`. En la
+    versión anterior se generaban dos JSON separados (OpenCode y Serena MCP), pero la
+    config real de OpenCode los requiere en un mismo archivo. Validado con el proyecto
+    `netclient_cross_compilation` del usuario.
 35. **Bug: `add_list_fact` esperaba `Evidence | None` pero cmake/conan pasaban
     `list[Evidence]`**: la evidencia quedaba serializada como `[[{...}]]` en el JSON,
     rompiendo `ProjectInfo.load()`. Corregido quitando los corchetes en los sitios de

@@ -40,7 +40,7 @@ Principios innegociables:
 
 ## Estado actual (actualízalo al terminar cada tarea)
 
-Hecho y con tests (416 pasando):
+Hecho y con tests (460 pasando):
 - `project_ai/model.py` — Fact/Evidence/SourcePriority/Status, ProjectInfo con
   fusión por prioridad (empate → gana el archivo más cercano a la raíz).
 - `project_ai/scanner.py` — listado git/walk, excluye carpetas generadas aunque
@@ -103,13 +103,17 @@ Hecho y con tests (416 pasando):
   genera `.project-ai/setup-agent.md` con config OpenCode JSON, config Serena MCP
   por stack (clangd para cmake, jdtls para maven/gradle), verificaciones curl y
   ejemplo de `project-ai context`.
+- `project_ai/adapters/python.py` — detecta pyproject.toml (PEP 621, Poetry, uv,
+  hatch), requirements*.txt, setup.py, .python-version; frameworks FastAPI/Django/Flask
+  → endpoints y servicios; gestor de paquetes → comandos deps/run/test; endpoints
+  FastAPI con prefijos de include_router, Flask @route con methods=[], Django urls.py.
 - `project_ai/cli.py` — subcomandos `recon`, `adapters`, `doctor`, `runbook`,
   `triage`, `finalize`, `context` y `setup-agent`; `app = main`.
 - **Bug corregido**: `cmake.py` y `conan.py` pasaban `evidence=[ev(...)]` a
   `add_list_fact` (que espera `Evidence | None`); la lista quedaba como lista
   anidada en el JSON impidiendo `ProjectInfo.load()` → corregido a `evidence=ev(...)`.
 
-**Fases C y F completas.** Siguiente: Fase D (Gradle/Android) o Fase G (evaluación).
+**Fases C, E (Python) y F completas.** Siguiente: `dotnet.py` (Fase E resto) o Fase G (evaluación).
 Ver ROADMAP.
 
 ## Cómo trabajar en este repo
