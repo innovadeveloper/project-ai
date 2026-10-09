@@ -51,9 +51,11 @@ def test_target_without_pom_is_kept(tmp_path):
 
 def test_glob_semantics(tmp_path):
     sc = ProjectScanner(make_tree(tmp_path, HMDM), use_git=False)
-    assert sc.glob("**/pom.xml") == ["pom.xml", "common/pom.xml", "server/pom.xml"]
+    assert sc.glob("**/pom.xml") == ["pom.xml", "common/pom.xml", "jwt/pom.xml",
+                                     "server/pom.xml"]
     assert sc.glob("*.xml") == ["context.xml", "pom.xml"]
-    assert sc.glob("server/**/*.java") == ["server/src/main/java/com/hmdm/App.java"]
+    assert sc.glob("server/**/Initializer.java") == [
+        "server/src/main/java/com/hmdm/guice/Initializer.java"]
     assert sc.glob("**/DOCKERFILE", icase=True) == [
         "Dockerfile", "docker/hmdm-docker-0.1.5/Dockerfile"]
 
@@ -61,4 +63,4 @@ def test_glob_semantics(tmp_path):
 def test_grep(tmp_path):
     sc = ProjectScanner(make_tree(tmp_path, HMDM), use_git=False)
     hits = sc.grep(r"<packaging>war", exts={".xml"})
-    assert [(h.file, h.line) for h in hits] == [("server/pom.xml", 1)]
+    assert [(h.file, h.line) for h in hits] == [("server/pom.xml", 4)]

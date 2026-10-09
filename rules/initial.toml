@@ -1,0 +1,123 @@
+# Reglas N0 de triage (sin LLM). Las leerá triage.py (Fase C).
+# Cada regla: id, stack (o ["*"]), match (regex Python, se busca en el log
+# recortado), cause, fix. 'refs' indica qué datos de project.json/env-report
+# usar para personalizar el arreglo. Comillas simples = literal (sin escapes).
+# tests/test_rules.py comprueba que el archivo es válido y que cada 'example'
+# coincide con su 'match'.
+
+[[rule]]
+id = "jdk-class-version"
+stack = ["maven", "gradle"]
+match = 'Unsupported class file major version (\d+)|invalid target release: (\S+)|release version (\d+) not supported'
+cause = "El JDK activo no coincide con el que exige el proyecto"
+fix = "Activa el JDK indicado en env-report.md (sdk use java <versión>) y repite el paso"
+refs = ["requirements.jdk", "facts.jdk_ceiling"]
+example = "[ERROR] Fatal error compiling: invalid target release: 17"
+
+[[rule]]
+id = "lombok-new-jdk"
+stack = ["maven", "gradle"]
+match = "java\\.lang\\.(?:IllegalAccessError|NoSuchFieldError).*(?:lombok|com\\.sun\\.tools\\.javac)|TypeTag :: UNKNOWN"
+cause = "La versión de Lombok del proyecto no soporta el JDK con el que compilas"
+fix = "Compila con un JDK <= jdk_ceiling (ver env-report.md) o sube la versión de lombok"
+refs = ["facts.jdk_ceiling"]
+example = "java.lang.NoSuchFieldError: com.sun.tools.javac.code.TypeTag :: UNKNOWN"
+
+[[rule]]
+id = "javax-on-tomcat10"
+stack = ["maven", "gradle"]
+match = 'ClassNotFoundException: javax\.servlet|java\.lang\.NoClassDefFoundError: javax/servlet'
+cause = "El WAR usa javax.servlet y se está desplegando en Tomcat >= 10 (jakarta)"
+fix = "Despliega en Tomcat 9.x (ver requirements.tomcat) o migra el código a jakarta.*"
+refs = ["facts.java.ee_namespace", "requirements.tomcat", "facts.ide.tomcat_local"]
+example = "java.lang.ClassNotFoundException: javax.servlet.ServletContextListener"
+
+[[rule]]
+id = "maven-private-repo-auth"
+stack = ["maven"]
+match = 'status code: 401|401 Unauthorized|Not authorized|Could not transfer artifact .* from/to (\S+)'
+cause = "Un repositorio Maven privado exige credenciales"
+fix = "Añade <server><id>ID_DEL_REPO</id><username/><password/></server> en ~/.m2/settings.xml (id = maven.repositories)"
+refs = ["facts.maven.repositories"]
+example = "Could not transfer artifact com.acme:lib:pom:1.0 from/to private (https://nexus.example.com/): status code: 401"
+
+[[rule]]
+id = "pkix-certificates"
+stack = ["*"]
+match = "PKIX path building failed|unable to find valid certification path"
+cause = "Un proxy o certificado corporativo no es de confianza para la JVM"
+fix = "Importa el certificado en el truststore del JDK activo (keytool -importcert -cacerts) o configura el proxy"
+refs = []
+example = "sun.security.validator.ValidatorException: PKIX path building failed"
+
+[[rule]]
+id = "conan-missing-binary"
+stack = ["conan", "cmake"]
+match = "Missing prebuilt package|Missing binary|ERROR: Missing binary"
+cause = "No hay binario precompilado de una dependencia para tu configuración"
+fix = "Repite con --build=missing (conan install . --build=missing -s build_type=<tipo>)"
+refs = ["facts.conan.requires"]
+example = "ERROR: Missing prebuilt package for 'fmt/10.2.1'"
+
+[[rule]]
+id = "conan-no-profile"
+stack = ["conan"]
+match = "The default build profile '.*' doesn't exist|You need to create a default profile"
+cause = "Conan 2 no tiene perfil por defecto en esta máquina"
+fix = "conan profile detect --force"
+refs = []
+example = "ERROR: The default build profile '/Users/x/.conan2/profiles/default' doesn't exist."
+
+[[rule]]
+id = "cmake-find-package"
+stack = ["cmake"]
+match = 'Could NOT find (\w+)|By not providing "Find(\w+)\.cmake"'
+cause = "CMake no encuentra una dependencia (find_package)"
+fix = "Si el proyecto usa Conan, ejecuta antes conan install y configura con su toolchain/preset; si no, instala la librería o indica <Paquete>_DIR"
+refs = ["facts.cmake.find_packages", "facts.conan.requires"]
+example = 'By not providing "FindBoost.cmake" in CMAKE_MODULE_PATH this project has'
+
+[[rule]]
+id = "cmake-no-compiler"
+stack = ["cmake"]
+match = "No CMAKE_CXX_COMPILER could be found|CMAKE_CXX_COMPILER not set"
+cause = "No hay compilador de C++ disponible para CMake"
+fix = "macOS: xcode-select --install (o brew install llvm). Ubuntu: sudo apt install build-essential"
+refs = []
+example = "No CMAKE_CXX_COMPILER could be found."
+
+[[rule]]
+id = "cmake-stale-cache"
+stack = ["cmake"]
+match = "does not match the source .* used to generate cache|CMakeCache\\.txt directory .* is different"
+cause = "La carpeta de build tiene un CMakeCache de otra ruta o de otro generador"
+fix = "Borra la carpeta de build (o build/CMakeCache.txt y build/CMakeFiles) y vuelve a configurar"
+refs = ["facts.hints.previous_cmake_builds"]
+example = "The current CMakeCache.txt directory /a/build/CMakeCache.txt is different than the directory /b/build"
+
+[[rule]]
+id = "android-sdk-location"
+stack = ["gradle"]
+match = "SDK location not found"
+cause = "Gradle no sabe dónde está el Android SDK"
+fix = "Crea local.properties con sdk.dir=<ruta del SDK> o exporta ANDROID_HOME"
+refs = []
+example = "SDK location not found. Define a valid SDK location with an ANDROID_HOME environment variable"
+
+[[rule]]
+id = "port-in-use"
+stack = ["*"]
+match = "Address already in use|Port (\\d+) was already in use|EADDRINUSE"
+cause = "El puerto ya está ocupado por otro proceso (¿otra instancia o Tomcat del sistema?)"
+fix = "Encuentra el proceso: lsof -nP -iTCP:<puerto> -sTCP:LISTEN  y deténlo, o cambia el puerto"
+refs = ["facts.hints.ports"]
+example = "Web server failed to start. Port 8080 was already in use."
+
+[[rule]]
+id = "db-connection-refused"
+stack = ["*"]
+match = "Connection to [\\w.]+:(\\d+) refused|Connection refused.*(5432|3306)|Communications link failure"
+cause = "La base de datos no está levantada o no escucha en ese puerto"
+fix = "Levanta el servicio (compose del repo si existe, o brew/apt) y revisa la URL JDBC"
+refs = ["services"]
+example = "org.postgresql.util.PSQLException: Connection to localhost:5432 refused."

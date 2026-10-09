@@ -212,19 +212,62 @@ def req(info: ProjectInfo, key: str, raw_value: object, priority: SourcePriority
     return info.add_requirement(key, fact)
 
 
+# Tipo de comando, en el orden en que suelen ejecutarse. El primero que
+# coincide gana (por eso 'test' va antes que 'build').
+CMD_KINDS: list[tuple[str, re.Pattern]] = [(k, re.compile(p)) for k, p in [
+    ("deps", r"\bconan\s+install\b|\bmvnw?\b.*\bdependency:|\bpip3?\s+install\b|"
+             r"\bnpm\s+(?:ci|install)\b|\bpoetry\s+install\b|\buv\s+sync\b|"
+             r"\bdotnet\s+restore\b|\bgit\s+submodule\b"),
+    ("configure", r"\bcmake\s+(?!--build|-E\b|--install)\S|\bmeson\s+setup\b|\./configure\b"),
+    ("test", r"\b(?:mvnw?|gradlew?)\b.*\b(?:test|verify|check)\b|\bctest\b|\bpytest\b|"
+             r"\bdotnet\s+test\b|\bnpm\s+(?:run\s+)?test\b"),
+    ("build", r"\b(?:mvnw?|gradlew?)\b.*\b(?:package|install|compile|build|assemble\w*|"
+              r"bundle\w*|war|jar)\b|\bcmake\s+--build\b|\b(?:make|ninja)\b|"
+              r"\bdotnet\s+(?:build|publish)\b|\bnpm\s+run\s+build\b|\bconan\s+(?:build|create)\b"),
+    ("run", r"\bjava\s+-jar\b|\bcatalina\.sh\b|\bmvnw?\b.*\b(?:spring-boot|jetty|tomcat7?):run\b|"
+            r"\bgradlew?\b.*\bbootRun\b|\bdotnet\s+run\b|\bnpm\s+(?:start|run\s+dev)\b|"
+            r"\bdocker(?:-compose|\s+compose)\b.*\bup\b"),
+    ("script", r"^(?:sudo\s+)?(?:\./|sh\s+|bash\s+)\S+\.(?:sh|bat|cmd)\b"),
+    ("ops", r"\bdocker\s+(?:exec|restart|stop|start|logs|rm|ps|cp|build|push|tag)\b|"
+            r"\bpsql\b|\bcreatedb\b|\bmosquitto_\w+"),
+]]
+CMD_KIND_ORDER = [k for k, _ in CMD_KINDS] + ["other"]
+
+
+def classify_cmd(cmd: str) -> str:
+    for kind, rx in CMD_KINDS:
+        if rx.search(cmd):
+            return kind
+    return "other"
+
+
 def add_cmd_hint(info: ProjectInfo, cmd: str, *, origin: str,
                  priority: SourcePriority, file: str, line: int | None,
                  adapter: str) -> None:
-    """Comando visto en CI/Docker/docs/IDE. El runbook los usará como pistas."""
+    """Comando visto en CI/Docker/docs/IDE. El runbook los usará como pistas.
+    Si el mismo comando aparece en varios sitios se acumulan las fuentes."""
     cmd = " ".join(cmd.split())
-    if not cmd or len(cmd) > 400:
+    if not cmd or len(cmd) > 500:
         return
-    info.add_list_fact(
-        "hints.commands",
-        {"cmd": cmd, "origin": origin, "priority": priority.name,
-         "source": f"{file}:{line}" if line else file},
-        priority=priority, adapter=adapter,
-        note="Comandos encontrados fuera de los archivos de build")
+    src = f"{file}:{line}" if line else file
+    f = info.facts.get("hints.commands")
+    if f is None:
+        f = Fact(value=[], priority=priority, adapter=adapter,
+                 note="Comandos encontrados fuera de los archivos de build")
+        info.facts["hints.commands"] = f
+    for item in f.value:
+        if item["cmd"] == cmd:
+            if src not in item["sources"] and len(item["sources"]) < 8:
+                item["sources"].append(src)
+            if priority > SourcePriority[item["priority"]]:
+                item["priority"], item["origin"] = priority.name, origin
+            return
+    if len(f.value) >= 300:
+        return
+    f.value.append({"cmd": cmd, "kind": classify_cmd(cmd), "origin": origin,
+                    "priority": priority.name, "sources": [src]})
+    if priority > f.priority:
+        f.priority = priority
 
 
 def add_service(info: ProjectInfo, kind: str, version: str | None,

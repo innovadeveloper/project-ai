@@ -1,5 +1,5 @@
 import pytest
-from conftest import HMDM, NETCLIENT, make_tree
+from conftest import HMDM, NETCLIENT, SMARTTOMCAT_FP, make_tree
 
 from project_ai.adapters import run_adapters
 from project_ai.adapters.base import jdk_major, normalize_version
@@ -148,6 +148,13 @@ def test_netclient_hints(tmp_path):
     cmds = [c["cmd"] for c in info.facts["hints.commands"].value]
     assert "conan install . --build=missing" in cmds
     assert "cmake --build --preset conan-debug" in cmds
+
+
+def test_smarttomcat_comment_no_false_positive(tmp_path):
+    """Comentario '<!-- Will be removed in Tomcat 10.1 -->' no debe producir ide.tomcat_local."""
+    info = run_adapters(ProjectScanner(make_tree(tmp_path, SMARTTOMCAT_FP), use_git=False),
+                        only=["hints"])
+    assert "ide.tomcat_local" not in info.facts
 
 
 def test_broken_adapter_does_not_crash(tmp_path, monkeypatch):

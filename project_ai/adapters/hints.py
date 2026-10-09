@@ -201,6 +201,8 @@ class HintsAdapter(Adapter):
     always_run = True
 
     def analyze(self, sc: ProjectScanner, info: ProjectInfo, detections) -> None:
+        self._containers_defined: set[str] = set()
+        self._containers_used: dict[str, str] = {}      # nombre -> archivo:línea
         self._toolchain_files(sc, info)
         self._dockerfiles(sc, info)
         self._compose(sc, info)
@@ -208,6 +210,18 @@ class HintsAdapter(Adapter):
         self._ide(sc, info)
         self._docs(sc, info)
         self._previous_builds(sc, info)
+        self._undefined_containers(info)
+
+    def _undefined_containers(self, info: ProjectInfo) -> None:
+        """Contenedores que la documentación usa (docker exec X ...) pero que no
+        define ningún docker-compose detectado: probable dependencia oculta."""
+        for name, src in sorted(self._containers_used.items()):
+            if name not in self._containers_defined:
+                file, _, line = src.rpartition(":")
+                info.add_list_fact(
+                    "hints.undefined_containers", name, priority=P.HEURISTIC,
+                    evidence=ev(file, int(line)), adapter=NAME,
+                    note="usado en docs pero no definido en ningún docker-compose")
 
     # ---------------------------------------------------------------- 1. toolchain
     def _toolchain_files(self, sc: ProjectScanner, info: ProjectInfo) -> None:
@@ -318,7 +332,16 @@ class HintsAdapter(Adapter):
                 "**/compose*.yml", "**/compose*.yaml")
         files = sorted({f for p in pats for f in sc.glob(p, icase=True)})
         for f in files:
+            in_services = False
             for i, line in enumerate(sc.read_lines(f), 1):
+                if re.match(r"^services\s*:", line):
+                    in_services = True
+                elif re.match(r"^\S", line):
+                    in_services = False
+                elif in_services and (m := re.match(r"^ {2}([\w.-]+)\s*:\s*$", line)):
+                    self._containers_defined.add(m.group(1))        # nombre de servicio
+                if m := re.match(r"""^\s*container_name:\s*["']?([\w.-]+)""", line):
+                    self._containers_defined.add(m.group(1))
                 m = re.match(r"""^\s*image:\s*["']?([^"'\s#]+)""", line)
                 if not m:
                     continue
@@ -415,10 +438,19 @@ class HintsAdapter(Adapter):
         if smart:
             run_cfg(".smarttomcat/", "intellij-smart-tomcat")
             self._servlet(info, smart[0], None, "plugin Smart Tomcat de IntelliJ")
+            # .smarttomcat/<mod>/conf es una COPIA de la conf del Tomcat instalado
+            # en la máquina del desarrollador: describe su entorno, no el proyecto.
             for f in smart:
-                if hit := re.search(r"tomcat[-_ ]?(\d+(?:\.\d+)+)", sc.read_text(f) or "", re.I):
-                    req(info, "tomcat", hit.group(1), P.HEURISTIC, f, None, hit.group(0),
-                        adapter=NAME, note="ruta de Tomcat en config del IDE")
+                # Quitar comentarios XML/HTML antes de buscar la versión: evita que
+                # avisos de deprecación ("Will be removed in Tomcat 10.1") den falsos positivos.
+                raw = sc.read_text(f) or ""
+                text = re.sub(r'<!--.*?-->', '', raw, flags=re.DOTALL)
+                if hit := re.search(r"tomcat[-_/ ]?(\d+(?:\.\d+)+)", text, re.I):
+                    info.set_fact("ide.tomcat_local", Fact(
+                        value=hit.group(1), priority=P.HEURISTIC,
+                        evidence=[ev(f, None, hit.group(0))], adapter=NAME,
+                        note="Tomcat configurado en el IDE (máquina local, no requisito). "
+                             "Tomcat >= 10 exige jakarta.servlet en vez de javax.servlet"))
                     break
 
         for f in sc.glob("context.xml") + sc.glob("**/META-INF/context.xml"):
@@ -447,6 +479,8 @@ class HintsAdapter(Adapter):
         ("cmake", re.compile(r"\bcmake\s*(?:version\s*)?(?:>=?\s*)?v?(3\.\d+(?:\.\d+)?)", re.I)),
         ("conan", re.compile(r"\bconan\s*(?:version\s*)?v?([12](?:\.\d+)*)\b", re.I)),
     ]
+    DOCKER_REF = re.compile(
+        r"\bdocker\s+(?:exec|restart|logs|stop|start)\s+(?:-{1,2}[\w-]+\s+)*([A-Za-z0-9][\w.-]+)")
     DOC_PG = re.compile(r"\bpostgres(?:ql)?\s*(?:version\s*)?v?(\d{1,2}(?:\.\d+)?)\b", re.I)
 
     def _docs(self, sc: ProjectScanner, info: ProjectInfo) -> None:
@@ -458,12 +492,16 @@ class HintsAdapter(Adapter):
                 continue
             n_cmds, seen_keys = 0, set()
             in_code = False
-            for i, raw in enumerate(text.splitlines(), 1):
-                line = raw.strip()
+            raw_lines = text.splitlines()
+            for i, line in _logical_lines(raw_lines):     # une 'cmd \' multilínea
+                raw = raw_lines[i - 1]
+                line = line.strip()
                 if line.startswith("```"):
                     in_code = not in_code
                     continue
-                if n_cmds < 40 and 0 < len(line) <= 240:
+                for m in self.DOCKER_REF.finditer(line):
+                    self._containers_used.setdefault(m.group(1), f"{f}:{i}")
+                if n_cmds < 60 and 0 < len(line) <= 400:
                     m = self.DOC_CMD.match(line)
                     if m and (in_code or raw[:1] in (" ", "\t", "$")
                               or not line.endswith((".", ":"))):

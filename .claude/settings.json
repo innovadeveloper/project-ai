@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run pytest:*)",
+      "Bash(uv run python -m pyflakes:*)",
+      "Bash(uv run python -m project_ai.scanner:*)",
+      "Bash(uv run python -m project_ai.adapters:*)",
+      "Bash(uv sync)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ]
+  }
+}
