@@ -88,9 +88,9 @@ Solo si hay `Makefile` **no generado** y no hay CMakeLists: targets (`all`,
 `test`, `install`), variables `CXX`, `CXXFLAGS -std=`. Sugerir `bear -- make`
 para compile_commands.
 
-## Fase C — Núcleo del flujo ⏳
+## Fase C — Núcleo del flujo 🔜
 
-### `recon.py` + `cli.py`
+### `recon.py` + `cli.py` ✅
 - `project-ai recon <ruta> [--only ...] [--json]` → escribe
   `<ruta>/.project-ai/project.json` y muestra el resumen (reusar
   `render_text` de `adapters/__main__.py`, moverlo a `report.py`).
@@ -99,29 +99,30 @@ para compile_commands.
 - `pyproject.toml`: `[project.scripts] project-ai = "project_ai.cli:main"`.
 Criterio: correr dos veces es idempotente; `--json` == `project.json`.
 
-### `repomap.py`
+### `repomap.py` ✅
 - Mapa compacto por módulo: archivos y símbolos (clases, métodos públicos,
   funciones libres, structs) con firmas, sin cuerpos. Objetivo 2–4k tokens;
   si se excede, priorizar archivos con entry points/endpoints y los más
   referenciados (conteo de includes/imports).
 - Implementación: regex por lenguaje (Java/Kotlin/C++/Python/C#); tree-sitter
   opcional si está instalado (`py-tree-sitter` + gramáticas), con fallback.
-Criterio: en hmdm el mapa cabe en 4k tokens y lista los resources REST.
+Criterio: en hmdm el mapa cabe en 4k tokens y lista los resources REST. ✅
 
-### `doctor.py`
+### `doctor.py` ✅
 - Comprueba cada clave de `requirements` con comandos de versión (tabla en
   `docs/COMMANDS.md` → "Comprobaciones de doctor"). Timeout 10 s por comando.
 - Lista JDKs instalados: macOS `/usr/libexec/java_home -V`, SDKMAN
-  `~/.sdkman/candidates/java/*`, Linux `/usr/lib/jvm/*`.
+  `~/.sdkman/candidates/java/*`.
 - Tomcat: `$CATALINA_HOME`/`$CATALINA_BASE`, `version.sh`; Homebrew
   (`/opt/homebrew/opt/tomcat@9`). Cruza con `java.ee_namespace`.
 - Servicios: conexión TCP a puertos por defecto (postgres 5432, mysql 3306,
   redis 6379, mqtt 1883, kafka 9092, rabbitmq 5672) — sin credenciales.
 - Respeta `jdk` (mínimo) y `jdk_ceiling` (máximo): recomienda una versión
   instalada dentro del rango o el comando SDKMAN/brew/apt para instalarla.
-- Salida `env-report.md` + código de salida ≠ 0 si hay ❌.
+- Salida `.project-ai/env-report.md` + código de salida ≠ 0 si hay ❌.
+- Fallback a recon si project.json tiene formato incompatible (bug de versión antigua).
 
-### `runbook.py`
+### `runbook.py` ✅
 - Fuentes de comandos por prioridad: verificados (journal) > IDE tasks > CI >
   adaptador > docs. Deduplicar por kind; mantener orden
   deps → configure → generate → build → test → run.
@@ -130,7 +131,7 @@ Criterio: en hmdm el mapa cabe en 4k tokens y lista los resources REST.
 - Servicios: si hay compose en el repo que define el servicio, proponerlo;
   si no, instrucciones locales (brew/apt) — el usuario decide.
 
-### `triage.py` + `rules/*.toml` + `llm.py` + `config.py`
+### `triage.py` + `rules/*.toml` + `llm.py` + `config.py` ✅
 - Recorta log: primer `ERROR`/`FAILED`/`error:` + 40 líneas, quitando ruido
   de descargas.
 - N0: reglas TOML (formato abajo; TOML porque `tomllib` es stdlib y YAML no).
@@ -161,7 +162,7 @@ Reglas iniciales mínimas (escribirlas con tests): JDK incorrecto, lombok/JDK,
 `401 Unauthorized` / `Could not resolve dependencies` en repo privado,
 `PKIX path building failed` (certificados corporativos).
 
-### `finalize.py`
+### `finalize.py` ✅
 - Marca comandos que tienen log con éxito como `verified` en project.json.
 - Genera `AGENTS.md` con la plantilla de ARCHITECTURE.md (≤ 200 líneas).
 - Opcional: `CLAUDE.md` del proyecto con una línea `@AGENTS.md`.
@@ -190,13 +191,13 @@ Reglas iniciales mínimas (escribirlas con tests): JDK incorrecto, lombok/JDK,
   `[HttpGet]`), comandos `dotnet restore/build/test/run`, `launchSettings.json`
   (puertos, perfiles).
 
-## Fase F — Integración con agentes locales ⏳
-- Plantilla de config de **OpenCode** apuntando a los nodos (docs/NODES.md).
-- Configuración de **Serena** por stack (clangd necesita compile_commands;
-  jdtls necesita importar Maven/Gradle).
-- `project-ai context "<pregunta>"`: imprime un paquete de contexto mínimo
-  (resumen + módulos relevantes por grep de nombres) para pegar en cualquier
-  chat local.
+## Fase F — Integración con agentes locales ✅
+- ✅ `context.py` — `project-ai context "<pregunta>" --path <ruta>`: paquete de
+  contexto mínimo (resumen del proyecto + símbolos de repo-map + endpoints) para
+  pegar en cualquier chat local; respeta presupuesto de tokens.
+- ✅ `setup_agent.py` — `project-ai setup-agent <ruta>`: genera
+  `.project-ai/setup-agent.md` con config JSON de OpenCode, config MCP de Serena
+  por stack (clangd/jdtls), verificaciones curl y ejemplo de uso.
 
 ## Fase G — Medir el alcance (sin Claude) ⏳
 - `docs/EVAL.md`: 10 tareas reales por stack (consulta, edición pequeña, nueva

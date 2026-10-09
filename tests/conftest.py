@@ -495,6 +495,147 @@ cmake_layout
     "main.cpp": "int main() {}\n",
 }
 
+# ---------------------------------------------------------------------------
+# Fixtures para repomap.py
+# ---------------------------------------------------------------------------
+
+# Código Java con JAX-RS y Spring MVC para testear el parser de símbolos
+REPOMAP_JAVA = {
+    # JAX-RS (hmdm-style)
+    "src/main/java/com/acme/rest/DeviceResource.java": """\
+package com.acme.rest;
+
+import javax.ws.rs.*;
+
+@Singleton
+@Path("/api/devices")
+public class DeviceResource {
+
+    @GET
+    @Path("/{id}")
+    public Response get(@PathParam("id") int id) { return null; }
+
+    @POST
+    public Response create(Device d) { return null; }
+
+    @PUT
+    @Path("/{id}")
+    public Response update(@PathParam("id") int id, Device d) { return null; }
+
+    @DELETE @Path("/{id}")
+    public Response delete(@PathParam("id") int id) { return null; }
+
+    private void helper() {}
+}
+""",
+    # Spring MVC
+    "src/main/java/com/acme/web/UserController.java": """\
+package com.acme.web;
+
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+
+    @GetMapping("/{id}")
+    public User get(@PathVariable Long id) { return null; }
+
+    @PostMapping
+    public User create(@RequestBody User u) { return null; }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id) {}
+
+    protected void internalMethod() {}
+    private void secret() {}
+}
+""",
+    # Clase sin HTTP (servicio)
+    "src/main/java/com/acme/service/UserService.java": """\
+package com.acme.service;
+
+public class UserService {
+    public User findById(long id) { return null; }
+    public java.util.List<User> findAll() { return null; }
+    public void save(User u) {}
+    private void validate(User u) {}
+}
+""",
+    # Interface
+    "src/main/java/com/acme/repo/UserRepo.java": """\
+package com.acme.repo;
+
+public interface UserRepo {
+    User findById(long id);
+    void save(User u);
+}
+""",
+}
+
+# C++ header y fuente para testear el parser
+REPOMAP_CPP = {
+    "include/ws/WebSocketClient.h": """\
+#pragma once
+#include <string>
+#include <functional>
+
+namespace ws {
+
+class WebSocketClient {
+public:
+    explicit WebSocketClient(const std::string& uri, int port);
+    ~WebSocketClient();
+
+    bool connect();
+    void disconnect();
+    bool send(const std::string& msg);
+    void onMessage(std::function<void(std::string)> handler);
+
+private:
+    std::string uri_;
+    int port_;
+    bool connected_ = false;
+};
+
+struct Message {
+    std::string topic;
+    std::string payload;
+    int qos = 0;
+};
+
+bool parseUri(const std::string& raw, std::string& host, int& port);
+
+} // namespace ws
+""",
+    "src/ws/websocket_client.cpp": """\
+#include "ws/WebSocketClient.h"
+
+namespace ws {
+
+WebSocketClient::WebSocketClient(const std::string& uri, int port)
+    : uri_(uri), port_(port) {}
+
+WebSocketClient::~WebSocketClient() { disconnect(); }
+
+bool WebSocketClient::connect() {
+    connected_ = true;
+    return true;
+}
+
+void WebSocketClient::disconnect() {
+    connected_ = false;
+}
+
+bool WebSocketClient::send(const std::string& msg) {
+    if (!connected_) return false;
+    return true;
+}
+
+} // namespace ws
+""",
+}
+
 # Fixture para verificar que comentarios HTML no generan falsos positivos en smarttomcat
 SMARTTOMCAT_FP = {
     ".smarttomcat/server/conf/web.xml": (

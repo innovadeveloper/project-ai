@@ -168,7 +168,7 @@ class CMakeAdapter(Adapter):
                 info.add_list_fact("cmake.find_packages",
                                    {"name": pkg, "version": version, "file": f, "line": line},
                                    priority=P.BUILD,
-                                   evidence=[ev(f, line, m.group(0).strip())])
+                                   evidence=ev(f, line, m.group(0).strip()))
 
     def _parse_fetchcontent(self, sc: ProjectScanner, info: ProjectInfo,
                             files: list[str]) -> None:
@@ -180,7 +180,7 @@ class CMakeAdapter(Adapter):
                 info.add_list_fact("cmake.fetchcontent",
                                    {"name": name, "file": f, "line": line},
                                    priority=P.BUILD,
-                                   evidence=[ev(f, line, f"FetchContent_Declare({name})")])
+                                   evidence=ev(f, line, f"FetchContent_Declare({name})"))
 
     def _detect_tests(self, sc: ProjectScanner, files: list[str]) -> bool:
         for f in files:

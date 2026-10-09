@@ -119,7 +119,7 @@ class ConanAdapter(Adapter):
                     info.add_list_fact(
                         "conan.requires",
                         {"name": pkg, "version": ver, "ref": ref},
-                        priority=P.BUILD, evidence=[ev(f, i, ref)])
+                        priority=P.BUILD, evidence=ev(f, i, ref))
 
         # Requires como atributo de clase: requires = ("fmt/10.2", "boost/1.82")
         for m in _RX_REQUIRES_ATTR.finditer(text):
@@ -132,7 +132,7 @@ class ConanAdapter(Adapter):
                     info.add_list_fact(
                         "conan.requires",
                         {"name": pkg, "version": ver, "ref": f"{pkg}/{ver}"},
-                        priority=P.BUILD, evidence=[ev(f)])
+                        priority=P.BUILD, evidence=ev(f))
 
         # Generadores
         gen_m = _RX_GEN_ATTR.search(text)
@@ -175,7 +175,7 @@ class ConanAdapter(Adapter):
                     info.add_list_fact(
                         "conan.requires",
                         {"name": pkg, "version": ver, "ref": f"{pkg}/{ver}"},
-                        priority=P.BUILD, evidence=[ev(f, i, line)])
+                        priority=P.BUILD, evidence=ev(f, i, line))
             elif section == "generators":
                 gen = line.strip()
                 if gen:

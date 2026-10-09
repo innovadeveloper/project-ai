@@ -1,0 +1,25 @@
+[project]
+name = "project-ai"
+version = "0.1.0"
+description = "Reconocimiento y diagnóstico de proyectos multi-lenguaje"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Kenny" }]
+# Sin dependencias externas: solo stdlib (Python >= 3.11 incluye tomllib).
+dependencies = []
+
+[project.scripts]
+project-ai = "project_ai.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pyflakes>=3.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

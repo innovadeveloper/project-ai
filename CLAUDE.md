@@ -40,7 +40,7 @@ Principios innegociables:
 
 ## Estado actual (actualízalo al terminar cada tarea)
 
-Hecho y con tests (126 pasando):
+Hecho y con tests (416 pasando):
 - `project_ai/model.py` — Fact/Evidence/SourcePriority/Status, ProjectInfo con
   fusión por prioridad (empate → gana el archivo más cercano a la raíz).
 - `project_ai/scanner.py` — listado git/walk, excluye carpetas generadas aunque
@@ -58,15 +58,59 @@ Hecho y con tests (126 pasando):
   configure/build/test/run.
 - `project_ai/adapters/conan.py` — Conan 2 vs 1, requires (conanfile.py y .txt),
   generators, cmake_layout, perfiles en repo, comando deps.
-- CLI provisional: `python -m project_ai.scanner` y `python -m project_ai.adapters`.
+- `project_ai/report.py` — `render_text(info)` extraído de `adapters/__main__.py`.
+- `project_ai/recon.py` — `recon(path, *, only, debug, write)` → `ProjectInfo`;
+  escribe `.project-ai/project.json` y `.project-ai/repo-map.md`;
+  añade `.project-ai/` a `.git/info/exclude`.
+- `project_ai/doctor.py` — `doctor(path, *, info, skip_services, os_hint, write)`
+  → `DoctorReport`; verifica jdk (con ceiling), maven, cmake, conan, ninja, clang,
+  gcc, python, node, tomcat, android; sonda puertos TCP; genera `env-report.md`.
+  Exit code 1 si hay ❌. Fallback a recon si project.json está corrupto.
+- `project_ai/repomap.py` — `build_repo_map(info, sc, *, max_tokens=4000)` → str;
+  parsea Java (JAX-RS + Spring MVC, brace-depth counting, anotaciones HTTP),
+  C++ (clases, structs, funciones libres) y Python (clases, métodos, funciones);
+  prioriza controllers/resources > entry_points > más importados; trunca con aviso.
+- `project_ai/runbook.py` — `runbook(path, *, info, doctor_report, os_hint, write)`
+  → `RunbookResult`; pasos ordenados deps→configure→build→test→run, cada uno con
+  tee a `.project-ai/logs/step-NN.log`; paso 0 de setup si doctor detecta fallos;
+  pasos de servicios con docker compose o instrucciones locales (brew/apt).
+- `project_ai/config.py` — `NodeConfig` + `Config`; carga `.project-ai/config.toml`
+  o usa defaults (n1=llama3.2:3b local, n2=qwen2.5-coder:14b con más ctx).
+- `project_ai/llm.py` — `chat(msg, *, node)` → `LLMResponse`; llama a Ollama
+  `/api/chat` con `urllib` (sin dependencias externas); extrae JSON del modelo
+  aunque envuelva la respuesta en bloques markdown; lanza `LLMError` si falla.
+- `project_ai/triage.py` — `triage(log_path, *, info, config, dry_run, write)` →
+  `TriageResult`; recorta log (primer ERROR + 40 líneas, sin ruido de descargas);
+  N0 (reglas TOML), N1/N2 (Ollama, escalada por confianza < 0.6), N3 (humano);
+  registra en `.project-ai/journal.md`.
+- `project_ai/cli.py` — subcomandos `recon`, `adapters`, `doctor`, `runbook` y
+  `triage` (con `--dry-run` / `--no-write`); `app = main`.
+- `pyproject.toml` — solo stdlib + pytest/pyflakes dev; entry point `project_ai.cli:main`.
+- CLI provisional mantenida: `python -m project_ai.scanner` y `python -m project_ai.adapters`.
 - `rules/initial.toml` — 13 reglas N0 de triage (aún sin motor; validadas por
   `tests/test_rules.py`: cada `example` debe coincidir con su `match`).
 
-Aún no existe: recon.py, repomap.py, doctor.py, runbook.py, triage.py,
-llm.py, config.py, finalize.py, cli.py (comando `project-ai`).
+- `project_ai/finalize.py` — `finalize(path, *, info, write)` → `FinalizeResult`;
+  escanea `logs/step-*.log` para detectar éxito por kind (BUILD SUCCESS, Tests
+  run Failures: 0, [100%] Built target…); marca comandos como `verified` en
+  project.json; lee journal.md para extraer trampas conocidas; genera `AGENTS.md`
+  (≤ 200 líneas) en la raíz del proyecto con stack, comandos, entorno, mapa,
+  trampas y punteros de navegación.
+- `project_ai/context.py` — `context(path, query, *, max_tokens=3000)` → str;
+  carga AGENTS.md §1–§2 o fallback de project.json, busca en repo-map.md y
+  endpoints por tokens de la pregunta, ensambla dentro del presupuesto de tokens.
+- `project_ai/setup_agent.py` — `setup_agent(path, *, info, config, write)` → str;
+  genera `.project-ai/setup-agent.md` con config OpenCode JSON, config Serena MCP
+  por stack (clangd para cmake, jdtls para maven/gradle), verificaciones curl y
+  ejemplo de `project-ai context`.
+- `project_ai/cli.py` — subcomandos `recon`, `adapters`, `doctor`, `runbook`,
+  `triage`, `finalize`, `context` y `setup-agent`; `app = main`.
+- **Bug corregido**: `cmake.py` y `conan.py` pasaban `evidence=[ev(...)]` a
+  `add_list_fact` (que espera `Evidence | None`); la lista quedaba como lista
+  anidada en el JSON impidiendo `ProjectInfo.load()` → corregido a `evidence=ev(...)`.
 
-**Siguiente tarea**: `adapters/make.py` (pequeño, ver Fase B ROADMAP) o saltar
-a Fase C (`recon.py` + `cli.py`). Después: gradle, doctor, runbook…
+**Fases C y F completas.** Siguiente: Fase D (Gradle/Android) o Fase G (evaluación).
+Ver ROADMAP.
 
 ## Cómo trabajar en este repo
 
