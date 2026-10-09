@@ -115,7 +115,8 @@ class TestSearchEndpoints:
         results = _search_endpoints(tmp_path, "auth login")
         assert any("auth" in r.lower() for r in results)
 
-    def test_no_match_returns_empty(self, tmp_path):
+    def test_no_match_returns_all(self, tmp_path):
+        """Sin coincidencias de tokens devuelve todos los endpoints (fallback)."""
         import json
         info = _proj_with_endpoints(tmp_path)
         (tmp_path / ".project-ai").mkdir(exist_ok=True)
@@ -123,7 +124,8 @@ class TestSearchEndpoints:
             json.dumps(info.to_dict()), encoding="utf-8"
         )
         results = _search_endpoints(tmp_path, "xyz unknown")
-        assert results == []
+        # Debe devolver todos los endpoints, no vacío
+        assert len(results) == len(info.endpoints)
 
 
 # --------------------------------------------------------------------------

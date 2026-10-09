@@ -87,12 +87,22 @@ def _load_summary(root: Path) -> str:
             info = ProjectInfo.load(json_path)
             stacks = ", ".join(info.stack_names()) or "desconocido"
             cmds   = ", ".join(info.commands) or "ninguno"
-            return (
-                f"**Stack**: {stacks}\n"
-                f"**Comandos**: {cmds}\n"
-                f"**Módulos**: {len(info.modules)}\n"
-                f"**Endpoints**: {len(info.endpoints)}"
-            )
+            lines = [
+                f"**Stack**: {stacks}",
+                f"**Comandos**: {cmds}",
+                f"**Módulos**: {len(info.modules)}",
+            ]
+            if info.endpoints:
+                lines.append(f"**Endpoints** ({len(info.endpoints)}):")
+                for ep in info.endpoints[:20]:
+                    lines.append(
+                        f"- `{ep.method} {ep.path}` → `{ep.handler}`"
+                    )
+                if len(info.endpoints) > 20:
+                    lines.append(
+                        f"_(y {len(info.endpoints) - 20} más — ver project.json)_"
+                    )
+            return "\n".join(lines)
         except Exception:
             pass
 
@@ -152,10 +162,16 @@ def _search_repo_map(root: Path, query: str) -> list[str]:
 
 
 def _search_endpoints(root: Path, query: str) -> list[str]:
-    """Devuelve líneas de endpoints de AGENTS.md relevantes a `query`."""
+    """Devuelve endpoints relevantes para `query`.
+
+    Primero intenta coincidir por tokens. Si no hay coincidencias,
+    devuelve TODOS los endpoints (el lector los filtra visualmente).
+    Así funciona aunque los nombres estén en otro idioma.
+    """
     agents = root / "AGENTS.md"
+    toks = _tokens(query)
+
     if not agents.exists():
-        # Intentar desde project.json
         json_path = root / OUTPUT_DIR / "project.json"
         if not json_path.exists():
             return []
@@ -163,21 +179,31 @@ def _search_endpoints(root: Path, query: str) -> list[str]:
             info = ProjectInfo.load(json_path)
         except Exception:
             return []
-        toks = _tokens(query)
-        return [
+        if not info.endpoints:
+            return []
+        all_lines = [
             f"- `{ep.method} {ep.path}` → `{ep.handler}`"
             for ep in info.endpoints
-            if any(t in ep.path.lower() or t in ep.handler.lower() for t in toks)
-        ][:10]
+        ]
+        if toks:
+            matched = [
+                ln for ln in all_lines
+                if any(t in ln.lower() for t in toks)
+            ]
+            return matched[:10] if matched else all_lines[:15]
+        return all_lines[:15]
 
-    text  = agents.read_text(encoding="utf-8")
-    toks  = _tokens(query)
-    lines = [
+    text = agents.read_text(encoding="utf-8")
+    all_ep_lines = [
         ln.strip() for ln in text.splitlines()
         if ln.strip().startswith("- `") and "`" in ln
-        and any(t in ln.lower() for t in toks)
     ]
-    return lines[:10]
+    if not all_ep_lines:
+        return []
+    if toks:
+        matched = [ln for ln in all_ep_lines if any(t in ln.lower() for t in toks)]
+        return matched[:10] if matched else all_ep_lines[:15]
+    return all_ep_lines[:15]
 
 
 # --------------------------------------------------------------------------
