@@ -862,3 +862,1426 @@ setup(
     "src/mylib/__init__.py": "",
     "src/mylib/client.py": "class Client: pass\n",
 }
+
+# ---------------------------------------------------------------------------
+# Fixtures .NET / ASP.NET Core
+# ---------------------------------------------------------------------------
+
+# ASP.NET Core Minimal API (.NET 8, PostgreSQL + Redis, launchSettings)
+DOTNET_MINIMAL_API = {
+    "MyApi.csproj": """\
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
+    <PackageReference Include="StackExchange.Redis" Version="2.7.33" />
+  </ItemGroup>
+</Project>
+""",
+    "global.json": '{"sdk": {"version": "8.0.100", "rollForward": "latestMinor"}}',
+    "Program.cs": """\
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddControllers();
+var app = builder.Build();
+app.MapGet("/api/products", () => Results.Ok(new[] { "product1" }));
+app.MapGet("/api/products/{id}", (int id) => Results.Ok(id));
+app.MapPost("/api/products", (Product p) => Results.Created($"/api/products/1", p));
+app.MapPut("/api/products/{id}", (int id, Product p) => Results.NoContent());
+app.MapDelete("/api/products/{id}", (int id) => Results.NoContent());
+app.Run();
+record Product(string Name, decimal Price);
+""",
+    "Properties/launchSettings.json": """\
+{
+  "profiles": {
+    "MyApi": {
+      "commandName": "Project",
+      "applicationUrl": "https://localhost:7001;http://localhost:5001",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
+""",
+}
+
+# ASP.NET Core MVC con controladores (.NET 7)
+DOTNET_MVC_CONTROLLERS = {
+    "PaymentApi.csproj": """\
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="7.0.0" />
+  </ItemGroup>
+</Project>
+""",
+    "Program.cs": """\
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddControllers();
+var app = builder.Build();
+app.MapControllers();
+app.Run();
+""",
+    "Controllers/PaymentController.cs": """\
+using Microsoft.AspNetCore.Mvc;
+
+namespace PaymentApi.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class PaymentController : ControllerBase
+{
+    [HttpGet]
+    public IActionResult GetAll() => Ok();
+
+    [HttpGet("{id:int}")]
+    public IActionResult GetById(int id) => Ok();
+
+    [HttpPost("create")]
+    public IActionResult Create([FromBody] object dto) => Created("/api/payment/1", dto);
+
+    [HttpPut("{id:int}")]
+    public IActionResult Update(int id, [FromBody] object dto) => NoContent();
+
+    [HttpDelete("{id:int}")]
+    public IActionResult Delete(int id) => NoContent();
+}
+""",
+}
+
+# Solución multi-proyecto: web + test (xunit)
+DOTNET_SOLUTION = {
+    "MyApp.sln": """\
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyApp", "MyApp/MyApp.csproj", "{11111111-1111-1111-1111-111111111111}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyApp.Tests", "MyApp.Tests/MyApp.Tests.csproj", "{22222222-2222-2222-2222-222222222222}"
+EndProject
+""",
+    "MyApp/MyApp.csproj": """\
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+</Project>
+""",
+    "MyApp/Program.cs": """\
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+app.MapGet("/health", () => "ok");
+app.Run();
+""",
+    "MyApp.Tests/MyApp.Tests.csproj": """\
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit" Version="2.9.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.0" />
+    <ProjectReference Include="../MyApp/MyApp.csproj" />
+  </ItemGroup>
+</Project>
+""",
+    "MyApp.Tests/HealthTests.cs": """\
+public class HealthTests
+{
+    [Fact]
+    public void Health_Returns_Ok() { }
+}
+""",
+}
+
+# ---------------------------------------------------------------------------
+# Fixtures Gradle / Android
+# ---------------------------------------------------------------------------
+
+# Android nativo: Kotlin DSL, AGP 8.3.2, libs.versions.toml, NDK (C++)
+ANDROID_APP = {
+    "settings.gradle.kts": """\
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "MyApp"
+include(":app")
+""",
+    "build.gradle.kts": """\
+plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.android) apply false
+}
+""",
+    "gradle/wrapper/gradle-wrapper.properties": """\
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\\://services.gradle.org/distributions/gradle-8.7-bin.zip
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+""",
+    "gradle/libs.versions.toml": """\
+[versions]
+agp = "8.3.2"
+kotlin = "1.9.24"
+coreKtx = "1.13.1"
+junit = "4.13.2"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+""",
+    "app/build.gradle.kts": """\
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+}
+
+android {
+    namespace = "com.example.myapp"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.example.myapp"
+        minSdk = 24
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = "src/main/cpp/CMakeLists.txt"
+        }
+    }
+}
+
+dependencies {
+    implementation(libs.androidx.core.ktx)
+    testImplementation(libs.junit)
+}
+""",
+    "app/src/main/cpp/CMakeLists.txt": (
+        "cmake_minimum_required(VERSION 3.22.1)\n"
+        "project(\"myapp\")\n"
+        "add_library(myapp SHARED myapp.cpp)\n"
+        "find_library(log-lib log)\n"
+        "target_link_libraries(myapp ${log-lib})\n"
+    ),
+    "local.properties": "sdk.dir=/Users/mac/Library/Android/sdk\n",
+}
+
+# Multi-módulo: app (nativo) + core (library) – Kotlin DSL
+ANDROID_MULTI = {
+    "settings.gradle.kts": """\
+rootProject.name = "MyMultiApp"
+include(":app", ":core")
+""",
+    "gradle/wrapper/gradle-wrapper.properties": """\
+distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip
+""",
+    "gradle/libs.versions.toml": """\
+[versions]
+agp = "8.1.4"
+kotlin = "1.9.10"
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+""",
+    "app/build.gradle.kts": """\
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+}
+
+android {
+    namespace = "com.example.app"
+    compileSdk = 34
+    defaultConfig {
+        applicationId = "com.example.app"
+        minSdk = 21
+        targetSdk = 34
+    }
+    kotlinOptions { jvmTarget = "11" }
+}
+""",
+    "core/build.gradle.kts": """\
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+}
+
+android {
+    namespace = "com.example.core"
+    compileSdk = 34
+    defaultConfig { minSdk = 21 }
+}
+""",
+}
+
+# Spring Boot + Kotlin (sin Android)
+KOTLIN_SPRING = {
+    "settings.gradle.kts": 'rootProject.name = "myservice"\n',
+    "build.gradle.kts": """\
+plugins {
+    id("org.springframework.boot") version "3.2.0"
+    id("io.spring.dependency-management") version "1.1.4"
+    kotlin("jvm") version "1.9.24"
+    kotlin("plugin.spring") version "1.9.24"
+}
+
+group = "com.example"
+version = "0.0.1-SNAPSHOT"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.kafka:spring-kafka:3.1.2")
+    implementation("org.jetbrains.kotlin:kotlin-reflect")
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+}
+""",
+    "gradle/wrapper/gradle-wrapper.properties": """\
+distributionUrl=https\\://services.gradle.org/distributions/gradle-8.5-bin.zip
+""",
+    "src/main/kotlin/com/example/ProductController.kt": """\
+package com.example
+
+import org.springframework.web.bind.annotation.*
+
+@RestController
+@RequestMapping("/api/products")
+class ProductController {
+
+    @GetMapping
+    fun getAll(): List<String> = listOf()
+
+    @GetMapping("/{id}")
+    fun getById(@PathVariable id: Long): String = ""
+
+    @PostMapping
+    fun create(@RequestBody dto: Map<String, Any>): Map<String, Any> = mapOf()
+
+    @DeleteMapping("/{id}")
+    fun delete(@PathVariable id: Long) {}
+}
+""",
+}
+
+# Android library con id("...") style (Kotlin DSL, sin version catalog)
+# Replica el patrón de proyectos como ws-mobile-library
+ANDROID_LIBRARY_ID_STYLE = {
+    "settings.gradle.kts": 'rootProject.name = "ws-mobile-library"\n',
+    "gradle/wrapper/gradle-wrapper.properties": """\
+distributionUrl=https\\://services.gradle.org/distributions/gradle-8.7-bin.zip
+""",
+    "build.gradle.kts": """\
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+    id("maven-publish")
+}
+
+android {
+    namespace = "com.abexa.ws_mobile_library"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 24
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+}
+""",
+}
+
+# Java puro con Groovy DSL (sin Android, sin Kotlin)
+GRADLE_JAVA = {
+    "settings.gradle": "rootProject.name = 'myapp'\n",
+    "build.gradle": """\
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'com.example'
+version = '1.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+application {
+    mainClass = 'com.example.Main'
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
+""",
+    "gradle/wrapper/gradle-wrapper.properties": """\
+distributionUrl=https\\://services.gradle.org/distributions/gradle-7.6-bin.zip
+""",
+    "src/main/java/com/example/Main.java": """\
+package com.example;
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello");
+    }
+}
+""",
+}
+
+# Aplicación de consola simple (sin web, sin tests)
+DOTNET_CONSOLE = {
+    "ConsoleApp.csproj": """\
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+</Project>
+""",
+    "Program.cs": 'Console.WriteLine("Hello, World!");\n',
+}
+
+# --------------------------------------------------------------------------
+# JavaScript / Node.js / Frontend
+# --------------------------------------------------------------------------
+
+# Express API con PostgreSQL y Redis, npm, .nvmrc
+NODEJS_EXPRESS = {
+    ".nvmrc": "20.11.0\n",
+    "package.json": """\
+{
+  "name": "my-api",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest --runInBand"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "pg": "^8.11.3",
+    "redis": "^4.6.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "nodemon": "^3.0.1"
+  }
+}
+""",
+    "package-lock.json": '{"name":"my-api","lockfileVersion":3,"requires":true,"packages":{}}\n',
+    "src/index.js": """\
+const express = require('express');
+const app = express();
+app.use(express.json());
+
+const usersRouter = require('./routes/users');
+const productsRouter = require('./routes/products');
+app.use('/api/users', usersRouter);
+app.use('/api/products', productsRouter);
+
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+module.exports = app;
+""",
+    "src/routes/users.js": """\
+const router = require('express').Router();
+
+router.get('/', async (req, res) => {
+    res.json([]);
+});
+router.post('/', async (req, res) => {
+    res.status(201).json({});
+});
+router.get('/:id', async (req, res) => {
+    res.json({});
+});
+router.delete('/:id', async (req, res) => {
+    res.status(204).end();
+});
+
+module.exports = router;
+""",
+    "src/routes/products.js": """\
+const router = require('express').Router();
+
+router.get('/', (req, res) => res.json([]));
+router.post('/', (req, res) => res.status(201).json({}));
+
+module.exports = router;
+""",
+    "src/db.js": """\
+const { Pool } = require('pg');
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+module.exports = pool;
+""",
+    "src/cache.js": """\
+const { createClient } = require('redis');
+const client = createClient({ url: process.env.REDIS_URL });
+module.exports = client;
+""",
+}
+
+# Angular 17 con app.routes.ts, yarn
+ANGULAR_APP = {
+    ".node-version": "20\n",
+    "package.json": """\
+{
+  "name": "my-angular-app",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "test": "ng test",
+    "lint": "ng lint"
+  },
+  "private": true,
+  "dependencies": {
+    "@angular/animations": "^17.0.0",
+    "@angular/common": "^17.0.0",
+    "@angular/compiler": "^17.0.0",
+    "@angular/core": "^17.0.0",
+    "@angular/forms": "^17.0.0",
+    "@angular/platform-browser": "^17.0.0",
+    "@angular/router": "^17.0.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.6.2",
+    "zone.js": "~0.14.2"
+  },
+  "devDependencies": {
+    "@angular-devkit/build-angular": "^17.0.0",
+    "@angular/cli": "^17.0.0",
+    "@types/jasmine": "~5.1.0",
+    "jasmine-core": "~5.1.0",
+    "karma": "~6.4.0",
+    "typescript": "~5.2.2"
+  }
+}
+""",
+    "yarn.lock": "# THIS IS AN AUTOGENERATED FILE. DO NOT EDIT THIS FILE DIRECTLY.\n",
+    "angular.json": """\
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "projects": {
+    "my-angular-app": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:application",
+          "options": {
+            "outputPath": "dist/my-angular-app",
+            "index": "src/index.html",
+            "browser": "src/main.ts"
+          }
+        },
+        "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "configurations": {
+            "production": { "buildTarget": "my-angular-app:build:production" },
+            "development": { "buildTarget": "my-angular-app:build:development" }
+          }
+        }
+      }
+    }
+  }
+}
+""",
+    "src/app/app.routes.ts": """\
+import { Routes } from '@angular/router';
+import { HomeComponent } from './home/home.component';
+import { DashboardComponent } from './dashboard/dashboard.component';
+import { UsersComponent } from './users/users.component';
+import { UserDetailComponent } from './users/user-detail.component';
+import { NotFoundComponent } from './not-found/not-found.component';
+
+export const routes: Routes = [
+  { path: '', component: HomeComponent },
+  { path: 'dashboard', component: DashboardComponent },
+  { path: 'users', component: UsersComponent },
+  { path: 'users/:id', component: UserDetailComponent },
+  { path: '**', component: NotFoundComponent },
+];
+""",
+    "src/app/app.component.ts": """\
+import { Component } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [RouterOutlet],
+  template: '<router-outlet />',
+})
+export class AppComponent {}
+""",
+    "src/main.ts": """\
+import { bootstrapApplication } from '@angular/platform-browser';
+import { AppComponent } from './app/app.component';
+import { provideRouter } from '@angular/router';
+import { routes } from './app/app.routes';
+
+bootstrapApplication(AppComponent, {
+  providers: [provideRouter(routes)],
+}).catch(err => console.error(err));
+""",
+}
+
+# React 18 + Vite + React Router v6, pnpm
+REACT_VITE = {
+    "package.json": """\
+{
+  "name": "my-react-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8",
+    "vitest": "^1.0.4"
+  }
+}
+""",
+    "pnpm-lock.yaml": "lockfileVersion: '6.0'\n",
+    "vite.config.ts": """\
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+  },
+})
+""",
+    "src/main.tsx": """\
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
+import App from './App'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </React.StrictMode>,
+)
+""",
+    "src/App.tsx": """\
+import { Routes, Route } from 'react-router-dom'
+import Home from './pages/Home'
+import Dashboard from './pages/Dashboard'
+import UserList from './pages/UserList'
+import UserDetail from './pages/UserDetail'
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/users" element={<UserList />} />
+      <Route path="/users/:id" element={<UserDetail />} />
+    </Routes>
+  )
+}
+
+export default App
+""",
+    "src/router.tsx": """\
+import { createBrowserRouter } from 'react-router-dom'
+import Home from './pages/Home'
+import Dashboard from './pages/Dashboard'
+
+export const router = createBrowserRouter([
+  { path: '/', element: <Home /> },
+  { path: '/dashboard', element: <Dashboard /> },
+  { path: '/users', element: <div>Users</div> },
+  { path: '/users/:id', element: <div>User</div> },
+])
+""",
+    "index.html": """\
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My React App</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+""",
+}
+
+# NestJS API con controladores, npm
+NESTJS_API = {
+    "package.json": """\
+{
+  "name": "my-nestjs-api",
+  "version": "0.0.1",
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "test": "jest",
+    "test:e2e": "jest --config ./test/jest-e2e.json"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/platform-express": "^10.0.0",
+    "reflect-metadata": "^0.1.13",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.0.0",
+    "@nestjs/schematics": "^10.0.0",
+    "@nestjs/testing": "^10.0.0",
+    "@types/express": "^4.17.17",
+    "@types/jest": "^29.5.2",
+    "@types/node": "^20.3.1",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.1.3"
+  }
+}
+""",
+    "package-lock.json": '{"name":"my-nestjs-api","lockfileVersion":3,"requires":true,"packages":{}}\n',
+    "src/main.ts": """\
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  await app.listen(3000);
+}
+bootstrap();
+""",
+    "src/app.module.ts": """\
+import { Module } from '@nestjs/common';
+import { UsersModule } from './users/users.module';
+import { ProductsModule } from './products/products.module';
+
+@Module({
+  imports: [UsersModule, ProductsModule],
+})
+export class AppModule {}
+""",
+    "src/users/users.controller.ts": """\
+import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
+
+@Controller('users')
+export class UsersController {
+  @Get()
+  findAll() {
+    return [];
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return { id };
+  }
+
+  @Post()
+  create(@Body() body: any) {
+    return body;
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return { deleted: id };
+  }
+}
+""",
+    "src/products/products.controller.ts": """\
+import { Controller, Get, Post, Put, Patch, Param, Body } from '@nestjs/common';
+
+@Controller('products')
+export class ProductsController {
+  @Get()
+  findAll() {
+    return [];
+  }
+
+  @Post()
+  create(@Body() body: any) {
+    return body;
+  }
+
+  @Put(':id')
+  update(@Param('id') id: string, @Body() body: any) {
+    return { id, ...body };
+  }
+
+  @Patch(':id')
+  patch(@Param('id') id: string) {
+    return { id };
+  }
+}
+""",
+}
+
+# Vite + HTML estático / frontend bundled (sin framework)
+STATIC_HTML = {
+    "package.json": """\
+{
+  "name": "my-static-site",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.0.8"
+  }
+}
+""",
+    "package-lock.json": '{"name":"my-static-site","lockfileVersion":3,"requires":true,"packages":{}}\n',
+    "vite.config.js": """\
+import { defineConfig } from 'vite'
+
+export default defineConfig({
+  build: {
+    outDir: 'dist',
+  },
+  server: {
+    port: 8080,
+  },
+})
+""",
+    "index.html": """\
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Static Site</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <h1>Hello World</h1>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
+""",
+    "src/main.js": """\
+document.getElementById('app').innerHTML = '<p>Vanilla JS app</p>';
+""",
+    "src/style.css": """\
+body { margin: 0; font-family: sans-serif; }
+""",
+}
+
+# --------------------------------------------------------------------------
+# Flutter / Dart
+# --------------------------------------------------------------------------
+
+# App Flutter móvil (Android + iOS): GoRouter, Firebase, Riverpod
+FLUTTER_APP = {
+    "pubspec.yaml": """\
+name: my_flutter_app
+description: "A Flutter mobile application."
+version: 1.0.0+1
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.16.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  go_router: ^13.0.0
+  flutter_riverpod: ^2.4.9
+  riverpod_annotation: ^2.3.3
+  firebase_core: ^2.24.2
+  firebase_auth: ^4.15.3
+  cloud_firestore: ^4.13.6
+  cached_network_image: ^3.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  build_runner: ^2.4.7
+  riverpod_generator: ^2.3.9
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+""",
+    "pubspec.lock": "# Generated by pub tool.\n",
+    "lib/main.dart": """\
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'router.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(ProviderScope(child: MyApp()));
+}
+
+class MyApp extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(routerProvider);
+    return MaterialApp.router(
+      title: 'My App',
+      routerConfig: router,
+    );
+  }
+}
+""",
+    "lib/router.dart": """\
+import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'pages/home_page.dart';
+import 'pages/dashboard_page.dart';
+import 'pages/users_page.dart';
+import 'pages/user_detail_page.dart';
+import 'pages/settings_page.dart';
+
+final routerProvider = Provider<GoRouter>((ref) {
+  return GoRouter(
+    initialLocation: '/',
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const HomePage(),
+      ),
+      GoRoute(
+        path: '/dashboard',
+        builder: (context, state) => const DashboardPage(),
+      ),
+      GoRoute(
+        path: '/users',
+        builder: (context, state) => const UsersPage(),
+        routes: [
+          GoRoute(
+            path: ':id',
+            builder: (context, state) => UserDetailPage(
+              userId: state.pathParameters['id']!,
+            ),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsPage(),
+      ),
+    ],
+  );
+});
+""",
+    "lib/pages/home_page.dart": """\
+import 'package:flutter/material.dart';
+
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(body: Text('Home'));
+  }
+}
+""",
+    "android/app/build.gradle": """\
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+    id 'dev.flutter.flutter-gradle-plugin'
+}
+
+android {
+    namespace "com.example.my_flutter_app"
+    compileSdkVersion flutter.compileSdkVersion
+    ndkVersion flutter.ndkVersion
+
+    defaultConfig {
+        applicationId "com.example.my_flutter_app"
+        minSdkVersion flutter.minSdkVersion
+        targetSdkVersion flutter.targetSdkVersion
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+    }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+}
+""",
+    "ios/Podfile": """\
+platform :ios, '12.0'
+
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist."
+  end
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}."
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+end
+""",
+    "analysis_options.yaml": """\
+include: package:flutter_lints/flutter.yaml
+""",
+}
+
+# Plugin Flutter (implementación nativa Android e iOS)
+FLUTTER_PLUGIN = {
+    "pubspec.yaml": """\
+name: my_camera_plugin
+description: "A Flutter plugin for camera access."
+version: 0.1.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.example.my_camera_plugin
+        pluginClass: MyCameraPlugin
+      ios:
+        pluginClass: MyCameraPlugin
+""",
+    "lib/my_camera_plugin.dart": """\
+import 'package:flutter/services.dart';
+
+class MyCameraPlugin {
+  static const MethodChannel _channel = MethodChannel('my_camera_plugin');
+
+  static Future<String?> getPlatformVersion() async {
+    final version = await _channel.invokeMethod<String>('getPlatformVersion');
+    return version;
+  }
+}
+""",
+    "android/src/main/kotlin/com/example/my_camera_plugin/MyCameraPlugin.kt": """\
+package com.example.my_camera_plugin
+
+import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.MethodChannel.MethodCallHandler
+
+class MyCameraPlugin: FlutterPlugin, MethodCallHandler {
+  private lateinit var channel: MethodChannel
+
+  override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+    channel = MethodChannel(binding.binaryMessenger, "my_camera_plugin")
+    channel.setMethodCallHandler(this)
+  }
+
+  override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+    if (call.method == "getPlatformVersion") {
+      result.success("Android " + android.os.Build.VERSION.RELEASE)
+    } else {
+      result.notImplemented()
+    }
+  }
+
+  override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+    channel.setMethodCallHandler(null)
+  }
+}
+""",
+    "ios/Classes/MyCameraPlugin.swift": """\
+import Flutter
+import UIKit
+
+public class MyCameraPlugin: NSObject, FlutterPlugin {
+  public static func register(with registrar: FlutterPluginRegistrar) {
+    let channel = FlutterMethodChannel(name: "my_camera_plugin", binaryMessenger: registrar.messenger())
+    let instance = MyCameraPlugin()
+    registrar.addMethodCallDelegate(instance, channel: channel)
+  }
+
+  public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "getPlatformVersion":
+      result("iOS " + UIDevice.current.systemVersion)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+}
+""",
+    "CHANGELOG.md": "## 0.1.0\n\n* Initial release.\n",
+}
+
+# Paquete Dart puro (sin Flutter, solo Dart)
+DART_PACKAGE = {
+    "pubspec.yaml": """\
+name: my_utils
+description: "A Dart utility library."
+version: 1.2.0
+homepage: https://github.com/example/my_utils
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  collection: ^1.18.0
+  meta: ^1.11.0
+
+dev_dependencies:
+  test: ^1.24.0
+  lints: ^3.0.0
+""",
+    "pubspec.lock": "# Generated by pub tool.\n",
+    "lib/my_utils.dart": """\
+/// A utility library for Dart.
+library my_utils;
+
+export 'src/string_utils.dart';
+export 'src/collection_utils.dart';
+""",
+    "lib/src/string_utils.dart": """\
+/// String utility functions.
+class StringUtils {
+  static String capitalize(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+  static bool isPalindrome(String s) => s == s.split('').reversed.join();
+}
+""",
+    "test/string_utils_test.dart": """\
+import 'package:test/test.dart';
+import 'package:my_utils/my_utils.dart';
+
+void main() {
+  group('StringUtils', () {
+    test('capitalize', () {
+      expect(StringUtils.capitalize('hello'), 'Hello');
+    });
+  });
+}
+""",
+    "analysis_options.yaml": "include: package:lints/recommended.yaml\n",
+}
+
+# ---------------------------------------------------------------------------
+# Fixtures para repomap — nuevos lenguajes
+# ---------------------------------------------------------------------------
+
+# NestJS controller (TypeScript con decoradores HTTP)
+REPOMAP_TS_NESTJS = {
+    "src/devices/devices.controller.ts": """\
+import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
+import { DevicesService } from './devices.service';
+
+@Controller('devices')
+export class DevicesController {
+  constructor(private readonly svc: DevicesService) {}
+
+  @Get()
+  findAll() {
+    return this.svc.findAll();
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.svc.findOne(+id);
+  }
+
+  @Post()
+  create(@Body() dto: CreateDeviceDto) {
+    return this.svc.create(dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.svc.remove(+id);
+  }
+
+  private _validate(dto: any) {
+    return !!dto;
+  }
+}
+""",
+    "src/devices/devices.service.ts": """\
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class DevicesService {
+  private readonly devices: Device[] = [];
+
+  findAll(): Device[] {
+    return this.devices;
+  }
+
+  findOne(id: number): Device | undefined {
+    return this.devices.find(d => d.id === id);
+  }
+
+  create(dto: CreateDeviceDto): Device {
+    const device = { id: Date.now(), ...dto };
+    this.devices.push(device);
+    return device;
+  }
+
+  remove(id: number): void {
+    const idx = this.devices.findIndex(d => d.id === id);
+    if (idx >= 0) this.devices.splice(idx, 1);
+  }
+}
+""",
+    "package.json": '{"name":"nest-api","dependencies":{"@nestjs/core":"^10.0.0"}}',
+}
+
+# Spring Boot Kotlin (anotaciones HTTP)
+REPOMAP_KT_SPRING = {
+    "src/main/kotlin/com/acme/web/UserController.kt": """\
+package com.acme.web
+
+import org.springframework.web.bind.annotation.*
+
+@RestController
+@RequestMapping("/api/users")
+class UserController(private val svc: UserService) {
+
+    @GetMapping("/{id}")
+    fun getUser(@PathVariable id: Long): User = svc.findById(id)
+
+    @PostMapping
+    fun createUser(@RequestBody dto: CreateUserDto): User = svc.create(dto)
+
+    @DeleteMapping("/{id}")
+    fun deleteUser(@PathVariable id: Long) = svc.delete(id)
+
+    private fun validate(dto: Any) = dto != null
+}
+""",
+    "src/main/kotlin/com/acme/service/UserService.kt": """\
+package com.acme.service
+
+import org.springframework.stereotype.Service
+
+@Service
+class UserService(private val repo: UserRepo) {
+
+    fun findById(id: Long): User = repo.findById(id).orElseThrow()
+
+    fun findAll(): List<User> = repo.findAll()
+
+    fun create(dto: CreateUserDto): User {
+        val user = User(name = dto.name)
+        return repo.save(user)
+    }
+
+    fun delete(id: Long) = repo.deleteById(id)
+}
+""",
+    "build.gradle.kts": 'plugins { id("org.springframework.boot") version "3.2.0" }\n',
+}
+
+# Flutter app con GoRouter (Dart)
+REPOMAP_DART_FLUTTER = {
+    "lib/main.dart": """\
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'router.dart';
+
+void main() => runApp(MyApp());
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(routerConfig: appRouter);
+  }
+}
+""",
+    "lib/router.dart": """\
+import 'package:go_router/go_router.dart';
+import 'screens/home_screen.dart';
+import 'screens/device_screen.dart';
+
+final appRouter = GoRouter(
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (ctx, state) => const HomeScreen(),
+    ),
+    GoRoute(
+      path: '/devices',
+      builder: (ctx, state) => const DeviceScreen(),
+      routes: [
+        GoRoute(
+          path: ':id',
+          builder: (ctx, state) => DeviceDetail(id: state.params['id']!),
+        ),
+      ],
+    ),
+  ],
+);
+""",
+    "lib/screens/home_screen.dart": """\
+import 'package:flutter/material.dart';
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(appBar: AppBar(title: const Text('Home')));
+  }
+}
+""",
+    "lib/services/device_service.dart": """\
+import 'package:http/http.dart' as http;
+import '../models/device.dart';
+
+class DeviceService {
+  final String baseUrl;
+
+  DeviceService(this.baseUrl);
+
+  Future<List<Device>> fetchDevices() async {
+    final resp = await http.get(Uri.parse('$baseUrl/devices'));
+    return parseDevices(resp.body);
+  }
+
+  List<Device> parseDevices(String json) => [];
+
+  Future<Device> createDevice(Map<String, dynamic> data) async {
+    return Device();
+  }
+}
+""",
+    "pubspec.yaml": """\
+name: my_app
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.16.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  go_router: ^12.0.0
+  http: ^1.1.0
+flutter:
+  uses-material-design: true
+""",
+    "android/build.gradle": 'buildscript { ext.kotlin_version = "1.9.0" }\n',
+}

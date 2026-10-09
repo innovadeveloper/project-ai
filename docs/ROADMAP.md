@@ -104,9 +104,12 @@ Criterio: correr dos veces es idempotente; `--json` == `project.json`.
   funciones libres, structs) con firmas, sin cuerpos. Objetivo 2–4k tokens;
   si se excede, priorizar archivos con entry points/endpoints y los más
   referenciados (conteo de includes/imports).
-- Implementación: regex por lenguaje (Java/Kotlin/C++/Python/C#); tree-sitter
-  opcional si está instalado (`py-tree-sitter` + gramáticas), con fallback.
+- Implementación: regex por lenguaje (Java/Kotlin/C++/Python/TypeScript/JS/Dart).
+  tree-sitter opcional en el futuro.
 Criterio: en hmdm el mapa cabe en 4k tokens y lista los resources REST. ✅
+- **Extensión multilenguaje ✅**: TypeScript/JS (NestJS controllers, funciones exportadas),
+  Kotlin (Spring Boot, extension functions, objects), Dart (class/mixin, métodos públicos).
+  `_simplify_ts_kotlin_params()` para formato `name: Type`. 44 tests en `test_repomap_new_langs.py`.
 
 ### `doctor.py` ✅
 - Comprueba cada clave de `requirements` con comandos de versión (tabla en
@@ -167,7 +170,7 @@ Reglas iniciales mínimas (escribirlas con tests): JDK incorrecto, lombok/JDK,
 - Genera `AGENTS.md` con la plantilla de ARCHITECTURE.md (≤ 200 líneas).
 - Opcional: `CLAUDE.md` del proyecto con una línea `@AGENTS.md`.
 
-## Fase D — Gradle / Android / Kotlin ⏳
+## Fase D — Gradle / Android / Kotlin ✅
 `adapters/gradle.py`:
 - settings.gradle(.kts): `include(...)` módulos; wrapper → gradle EXPLICIT.
 - `java { toolchain { languageVersion = JavaLanguageVersion.of(17) } }`,
@@ -181,15 +184,36 @@ Reglas iniciales mínimas (escribirlas con tests): JDK incorrecto, lombok/JDK,
   adaptador sirve para medir el alcance.
 - Endpoints Spring en Kotlin (`@GetMapping` en `fun`).
 
-## Fase E — Python y C# 🔜
+## Fase E — Python y C# ✅
 - ✅ `python.py`: pyproject (PEP 621/poetry/uv/hatch), requirements*.txt,
   setup.py, `.python-version`, `requires-python`; framework (FastAPI, Django,
   Flask) → entry points y endpoints; comandos con uv/poetry/pip; endpoints
   FastAPI con prefijos de include_router, Flask @route, Django urls.py.
-- `dotnet.py`: `.sln`, `.csproj` (`TargetFramework` net8.0 → dotnet 8),
-  `global.json` (ya en hints), ASP.NET (`Program.cs`, `MapGet`, controllers
-  `[HttpGet]`), comandos `dotnet restore/build/test/run`, `launchSettings.json`
-  (puertos, perfiles).
+- ✅ `dotnet.py`: `.sln`, `.csproj` (`TargetFramework` net8.0 → dotnet 8),
+  `global.json` (EXPLICIT), ASP.NET (`Program.cs` Minimal API `MapGet/Post/…`,
+  controllers `[ApiController]+[Route]+[HttpGet/Post/…]`),
+  `launchSettings.json` (puertos), comandos `dotnet restore/build/test/run`.
+
+## Fase E-extra-2 — Flutter / Dart ✅
+- ✅ `flutter.py`: `pubspec.yaml` → Dart SDK EXPLICIT, Flutter SDK EXPLICIT (solo si
+  `flutter:` section presente); módulos (flutter-app/flutter-plugin/dart-package);
+  plataformas detectadas por directorio (android/ios/web/linux/macos/windows);
+  servicios: firebase_*/supabase/postgres/mqtt_client/sqflite/drift;
+  rutas GoRouter (`GoRoute(path: '/...')`) en `lib/**/*.dart` — solo rutas absolutas
+  (sub-rutas relativas ignoradas por ahora, HEURISTIC); comandos `flutter pub get`,
+  `flutter run`, `flutter test`, `flutter build apk` con `overwrite=True` para ganar
+  sobre el adaptador gradle del subdirectorio `android/`; paquetes Dart puros → `dart pub get / dart test`.
+  3 fixtures (app móvil con GoRouter+Firebase+Riverpod, plugin, paquete Dart), 40 tests.
+
+## Fase E-extra — JavaScript / TypeScript ✅
+- ✅ `javascript.py`: `.nvmrc`/`.node-version` → node EXPLICIT; lockfiles → PM
+  EXPLICIT; `angular.json` → angular EXPLICIT; deps → framework BUILD; módulos
+  (api-server/frontend-app/fullstack-app/bundled-frontend/static-site); servicios
+  pg/redis/mongo/mysql/kafka/rabbitmq; endpoints Express (`app.get/router.post`),
+  NestJS (`@Controller+@Get/@Post` con prefix), Angular routes (`path:'segment'`
+  en `*.routes.ts`), React Router (`<Route path="…">` y `createBrowserRouter`);
+  comandos npm/yarn/pnpm/bun install→deps, scripts dev/start→run, build/test.
+  5 fixtures (Express, Angular, React+Vite, NestJS, static HTML), 55 tests.
 
 ## Fase F — Integración con agentes locales ✅
 - ✅ `context.py` — `project-ai context "<pregunta>" --path <ruta>`: paquete de

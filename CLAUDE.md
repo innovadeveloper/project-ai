@@ -40,7 +40,7 @@ Principios innegociables:
 
 ## Estado actual (actualízalo al terminar cada tarea)
 
-Hecho y con tests (460 pasando):
+Hecho y con tests (538 pasando):
 - `project_ai/model.py` — Fact/Evidence/SourcePriority/Status, ProjectInfo con
   fusión por prioridad (empate → gana el archivo más cercano a la raíz).
 - `project_ai/scanner.py` — listado git/walk, excluye carpetas generadas aunque
@@ -113,8 +113,40 @@ Hecho y con tests (460 pasando):
   `add_list_fact` (que espera `Evidence | None`); la lista quedaba como lista
   anidada en el JSON impidiendo `ProjectInfo.load()` → corregido a `evidence=ev(...)`.
 
-**Fases C, E (Python) y F completas.** Siguiente: `dotnet.py` (Fase E resto) o Fase G (evaluación).
-Ver ROADMAP.
+- `project_ai/adapters/dotnet.py` — detecta .csproj/.sln; TargetFramework (net8.0→8) + global.json
+  (EXPLICIT); módulos (web-app/console/test/library); servicios (Npgsql→postgresql,
+  StackExchange.Redis→redis, etc.); endpoints Minimal API (app.MapGet/Post…) y Controllers
+  ([Route]+[HttpGet/Post…]); launchSettings.json→ports; comandos restore/build/test/run.
+
+- `project_ai/adapters/gradle.py` — gradle-wrapper → versión EXPLICIT; libs.versions.toml → AGP/Kotlin
+  EXPLICIT; settings include() → módulos; alias(libs.plugins.android.*) resuelto a plugin canónico;
+  id("com.android.library") en Kotlin DSL ahora detectado correctamente (fix: `[\("']` → `\(?\s*["']`);
+  compileSdk/minSdk/targetSdk/namespace; NDK → fact + aviso; JDK (toolchain EXPLICIT > sourceCompatibility
+  BUILD > inferido de AGP HEURISTIC); Spring/Kotlin endpoints @GetMapping/@PostMapping + @RequestMapping
+  de clase; comandos assembleDebug/test/installDebug (Android) o build/test/run (Java/Spring).
+
+- `project_ai/adapters/javascript.py` — .nvmrc/.node-version → node EXPLICIT; lockfiles → PM EXPLICIT;
+  angular.json → angular EXPLICIT; deps → framework BUILD (nestjs/angular/react/express/vue/…);
+  módulos (api-server/frontend-app/fullstack-app/bundled-frontend/static-site); servicios pg/redis/mongo/…;
+  endpoints Express app.get/router.post, NestJS @Controller+@Get/@Post con prefix, Angular routes
+  path:'segment' en *.routes.ts, React Router `<Route path="…">` y createBrowserRouter; comandos
+  npm/yarn/pnpm/bun install→deps, scripts dev/start→run, build→build, test→test; Angular CLI si
+  angular.json.
+
+- `project_ai/adapters/flutter.py` — pubspec.yaml → Dart SDK EXPLICIT, Flutter SDK EXPLICIT;
+  módulos (flutter-app/flutter-plugin/dart-package); plataformas (android/ios/web/…);
+  servicios (firebase/supabase/postgres/mqtt/sqlite); rutas GoRoute(path:'/…') en lib/**/*.dart
+  (solo absolutas; sub-rutas relativas ignoradas); comandos flutter pub get/run/test/build apk
+  (overwrite=True para ganar sobre gradle del directorio android/); paquetes Dart puros
+  usan dart pub get / dart test.
+
+- `project_ai/repomap.py` — parsers nuevos para **TypeScript/JavaScript** (clases, interfaces, funciones
+  exportadas, decoradores NestJS `@Controller/@Get/@Post…`), **Kotlin** (class/object/interface, `fun`,
+  Spring `@GetMapping/@PostMapping`), **Dart** (class/mixin, métodos públicos). Regex con 1 nivel de
+  anidamiento en params (`(?:[^)(]|\([^)]*\))*`); `_simplify_ts_kotlin_params()` para `name: Type`.
+
+**Fases C, D, E, F y repomap multilenguaje completos. 679 tests.** Siguiente: Fase G (evaluación)
+o validar sobre proyectos reales Android/Kotlin. Ver ROADMAP.
 
 ## Cómo trabajar en este repo
 

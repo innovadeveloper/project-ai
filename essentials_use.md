@@ -44,6 +44,8 @@ project-ai adapters /ruta/al/proyecto --json
 
 # Solo ciertos adaptadores:
 project-ai adapters /ruta/al/proyecto --only hints maven
+project-ai adapters /ruta/al/proyecto --only gradle
+project-ai adapters /ruta/al/proyecto --only flutter
 ```
 
 ### Paso 2 — Comprobar tu máquina
@@ -134,16 +136,18 @@ project-ai context "qué hace DeviceService" --path /ruta/al/proyecto --max-toke
 
 | Stack | Archivos clave detectados | Qué extrae |
 |---|---|---|
-| **Maven** (Spring Boot, WAR) | `pom.xml` | JDK, módulos, javax/jakarta, endpoints REST, servicios |
-| **CMake** (C++) | `CMakeLists.txt`, `CMakePresets.json` | estándar C++, targets, find_package, presets |
-| **Conan** (C++) | `conanfile.py`, `conanfile.txt` | versión Conan, requires, cmake_layout |
-| **Python** (FastAPI, Django, Flask) | `pyproject.toml`, `requirements*.txt`, `setup.py` | versión Python, framework, endpoints, servicios |
-| **Hints** (transversal) | `Dockerfile`, `docker-compose.yml`, `.vscode/`, CI | comandos, toolchain, builds previos |
+| **Maven** (Spring Boot, WAR/Tomcat) | `pom.xml` | JDK (con ceiling), módulos, javax/jakarta, endpoints REST, servicios |
+| **CMake** (C++) | `CMakeLists.txt`, `CMakePresets.json` | estándar C++, targets, find_package, presets Conan |
+| **Conan** (C++) | `conanfile.py`, `conanfile.txt` | versión Conan 1/2, requires, cmake_layout, perfiles |
+| **Python** (FastAPI, Django, Flask) | `pyproject.toml`, `requirements*.txt`, `setup.py` | versión Python, gestor (uv/poetry/pip), endpoints, servicios |
+| **Gradle** (Android, Spring/Kotlin, Java) | `build.gradle(.kts)`, `settings.gradle(.kts)`, `libs.versions.toml` | AGP, JDK, compileSdk/minSdk, NDK, módulos Android/library |
+| **.NET** (ASP.NET Core, consola) | `*.csproj`, `*.sln`, `global.json` | TargetFramework, Minimal API + controllers, launchSettings puertos |
+| **JavaScript / TypeScript** | `package.json`, lockfiles | Node.js, gestor npm/yarn/pnpm/bun, Express/NestJS/Angular/React/Vue endpoints |
+| **Flutter / Dart** | `pubspec.yaml` | Dart SDK, Flutter SDK, plataformas (android/ios/web), GoRouter rutas, Firebase/Supabase |
+| **Hints** (transversal) | `Dockerfile`, `docker-compose.yml`, `.vscode/`, CI | comandos, toolchain, puertos, builds previos |
 
-### Próximamente
-
-- Gradle / Android / Kotlin
-- .NET / C# (`.csproj`, `.sln`)
+> **Nota Android**: `id("com.android.library")` en Kotlin DSL detectado correctamente.
+> Proyectos JNI (NDK + `externalNativeBuild`) avisan de la dependencia de NDK.
 
 ---
 
@@ -160,6 +164,9 @@ project-ai setup-agent <ruta> [--no-write]
 project-ai context    "<pregunta>" --path <ruta> [--max-tokens N]
 ```
 
+Adaptadores disponibles: `hints`, `maven`, `cmake`, `conan`, `python`,
+`dotnet`, `gradle`, `javascript`, `flutter`.
+
 ---
 
 ## Troubleshooting
@@ -170,8 +177,8 @@ project-ai context    "<pregunta>" --path <ruta> [--max-tokens N]
 
 **Causas frecuentes y soluciones**:
 
-1. **El proyecto usa un stack no soportado aún** (Gradle, .NET, Go, Rust…).
-   - Mira si hay `build.gradle`, `*.csproj`, `go.mod`, `Cargo.toml`.
+1. **El proyecto usa un stack no soportado aún** (Go, Rust, Ruby…).
+   - Mira si hay `go.mod`, `Cargo.toml`, `Gemfile`.
    - Por ahora, anota a mano el stack en `.project-ai/project.json` o
      espera el adaptador correspondiente.
 
@@ -185,7 +192,7 @@ project-ai context    "<pregunta>" --path <ruta> [--max-tokens N]
    - El adaptador `hints` aún puede extraer comandos de `Makefile`,
      `Dockerfile` o scripts de CI.
 
-4. **El `pom.xml` o `CMakeLists.txt` tienen errores de sintaxis**.
+4. **El archivo de build tiene errores de sintaxis**.
    - Corre `project-ai adapters . --debug` para ver el traceback completo.
 
 ---
@@ -196,11 +203,15 @@ project-ai context    "<pregunta>" --path <ruta> [--max-tokens N]
    (p.ej. `>= 11, <= 17`). Comprueba con `java -version` y usa
    SDKMAN (`sdk use java 17.x`) o Homebrew para cambiar.
 
-2. **Herramienta no en el PATH**: `cmake`, `conan`, `mvn` pueden estar
-   instalados pero no accesibles. Comprueba con `which cmake`.
+2. **Herramienta no en el PATH**: `cmake`, `conan`, `mvn`, `flutter`, `dotnet`
+   pueden estar instalados pero no accesibles. Comprueba con `which <tool>`.
 
 3. **Servicio no escucha**: PostgreSQL/Redis/etc. pueden estar instalados
    pero sin arrancar. Usa `--skip-services` para ignorar puertos.
+
+4. **Android con conflicto de JDK**: si el proyecto tiene módulos con
+   `sourceCompatibility = VERSION_11` y otros con `jvmTarget = "17"`,
+   doctor avisa del conflicto. Usa el JDK más alto indicado (17).
 
 ---
 
@@ -232,18 +243,26 @@ Significa que ninguna regla N0 coincidió y Ollama tampoco pudo ayudar.
 
 ### Los endpoints no aparecen o están incompletos
 
-- **Java**: los endpoints JAX-RS necesitan `@Path` en la clase Y en el método.
-  Si la clase no tiene `@Path`, no se detectan. Comprueba con `--debug`.
+- **Java/Spring**: los endpoints JAX-RS necesitan `@Path` en la clase Y en
+  el método. Si la clase no tiene `@Path`, no se detectan.
 
 - **FastAPI con routers en subdirectorios anidados**: si el `include_router`
   está en un archivo distinto al `main.py`, el prefijo puede no detectarse.
-  Workaround: busca en `repo-map.md` las rutas detectadas.
 
 - **Django con `re_path`**: se detecta como patrón regex, no como ruta limpia.
   Es normal ver `^api/devices/$` en vez de `/api/devices/`.
 
 - **Flask con `Blueprint`**: los blueprints aún no se resuelven.
   Los endpoints aparecerán sin el prefijo del blueprint.
+
+- **NestJS**: los controladores deben estar en archivos `*.controller.ts`.
+
+- **Flutter / GoRouter**: solo se detectan rutas absolutas (que empiezan con `/`).
+  Las sub-rutas relativas (`path: ':id'` dentro de otro `GoRoute`) no se resuelven
+  automáticamente.
+
+- **Angular**: las rutas se detectan en `*.routes.ts` y `*-routing.module.ts`.
+  Rutas lazy-loaded (con `loadComponent`) no se siguen.
 
 ---
 
@@ -259,11 +278,14 @@ no existen o no contienen las señales esperadas:
 
 2. Los patrones reconocidos como éxito son:
    - **build Maven**: `BUILD SUCCESS`
+   - **build Gradle**: `BUILD SUCCESSFUL`
    - **build CMake**: `[100%] Built target` o `cmake --build` sin error
-   - **test Maven**: `Tests run: X, Failures: 0, Errors: 0`
-   - **test pytest**: `passed`
+   - **build Flutter**: `Built build/`
+   - **test Maven/Gradle**: `Tests run: X, Failures: 0`
+   - **test pytest / dart test**: `passed` / `All tests passed!`
    - **run Spring Boot**: `Started ... in X.X seconds`
    - **run uvicorn**: `Application startup complete`
+   - **flutter run**: `Syncing files to device`
 
 3. Si el log tiene éxito pero no coincide con ningún patrón, abre
    un issue con el fragmento de log para añadir el patrón.

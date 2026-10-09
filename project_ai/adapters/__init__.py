@@ -9,6 +9,11 @@ from . import maven   # Maven
 from . import cmake   # CMake
 from . import conan   # Conan
 from . import python  # Python
+from . import dotnet      # .NET / ASP.NET Core
+from . import gradle      # Gradle / Android / Kotlin
+from . import javascript  # JavaScript / TypeScript / HTML
+from . import flutter     # Flutter / Dart
 
 __all__ = ["REGISTRY", "Adapter", "all_adapters", "register", "run_adapters",
-           "hints", "maven", "cmake", "conan", "python"]
+           "hints", "maven", "cmake", "conan", "python", "dotnet", "gradle",
+           "javascript", "flutter"]
