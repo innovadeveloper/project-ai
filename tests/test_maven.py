@@ -1,5 +1,5 @@
 import pytest
-from conftest import HMDM, SPRING_API, make_tree
+from conftest import HMDM, SPRING_API, SPRING_WITH_CONFIG, SPRING_WITH_PROPERTIES, make_tree
 
 from project_ai.adapters import run_adapters
 from project_ai.adapters.maven import _parse_endpoints
@@ -146,3 +146,82 @@ def test_invalid_pom_is_warning_not_crash(tmp_path):
     info = run_adapters(ProjectScanner(root, use_git=False))
     assert any("XML inválido" in w for w in info.warnings)
     assert [m.name for m in info.modules] == ["a"]
+
+
+# ==========================================================================
+# Spring application.yml / application.properties
+# ==========================================================================
+
+class TestSpringConfigYaml:
+    def setup_method(self):
+        pass
+
+    def _info(self, tmp_path):
+        return run_adapters(ProjectScanner(make_tree(tmp_path, SPRING_WITH_CONFIG), use_git=False))
+
+    def test_port_from_yaml(self, tmp_path):
+        info = self._info(tmp_path)
+        assert "spring.port" in info.facts
+        assert info.facts["spring.port"].value == "9090"
+
+    def test_context_path_from_yaml(self, tmp_path):
+        info = self._info(tmp_path)
+        assert "spring.context_path" in info.facts
+        assert info.facts["spring.context_path"].value == "/inventory"
+
+    def test_active_profiles_from_yaml(self, tmp_path):
+        info = self._info(tmp_path)
+        assert "spring.active_profiles" in info.facts
+        assert "dev" in info.facts["spring.active_profiles"].value
+
+    def test_required_env_vars(self, tmp_path):
+        info = self._info(tmp_path)
+        assert "config.required_env" in info.facts
+        env_vars = info.facts["config.required_env"].value
+        assert "DB_USER" in env_vars
+        assert "DB_PASS" in env_vars
+        assert "API_KEY" in env_vars
+
+    def test_env_vars_with_default_not_included(self, tmp_path):
+        # allowed-origins tiene valor fijo, no ${VAR}
+        info = self._info(tmp_path)
+        env_vars = info.facts.get("config.required_env", type('', (), {'value': []})()).value
+        assert "allowed-origins" not in env_vars
+
+    def test_postgresql_from_jdbc_url_in_yaml(self, tmp_path):
+        info = self._info(tmp_path)
+        kinds = {s.kind for s in info.services}
+        assert "postgresql" in kinds
+
+
+class TestSpringConfigProperties:
+    def _info(self, tmp_path):
+        return run_adapters(
+            ProjectScanner(make_tree(tmp_path, SPRING_WITH_PROPERTIES), use_git=False))
+
+    def test_port_from_properties(self, tmp_path):
+        info = self._info(tmp_path)
+        assert "spring.port" in info.facts
+        assert info.facts["spring.port"].value == "8081"
+
+    def test_context_path_from_properties(self, tmp_path):
+        info = self._info(tmp_path)
+        assert "spring.context_path" in info.facts
+        assert info.facts["spring.context_path"].value == "/api/v1"
+
+    def test_active_profiles_from_properties(self, tmp_path):
+        info = self._info(tmp_path)
+        assert "spring.active_profiles" in info.facts
+        assert "staging" in info.facts["spring.active_profiles"].value
+
+    def test_required_env_from_properties(self, tmp_path):
+        info = self._info(tmp_path)
+        assert "config.required_env" in info.facts
+        env_vars = info.facts["config.required_env"].value
+        assert "MYSQL_USER" in env_vars
+        assert "MYSQL_PASS" in env_vars
+
+    def test_no_spring_config_on_plain_maven(self, tmp_path):
+        # SPRING_API sin application.yml → no debe crear spring.port
+        info = run_adapters(ProjectScanner(make_tree(tmp_path, SPRING_API), use_git=False))
+        assert "spring.port" not in info.facts

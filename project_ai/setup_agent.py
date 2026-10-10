@@ -134,7 +134,40 @@ def _generate(root: Path, stacks: list[str], config) -> str:
             "",
         ]
 
-    if not any(s in stacks for s in ("cmake", "maven", "gradle")):
+    if "rust" in stacks:
+        lines += [
+            "### Rust — rust-analyzer",
+            "",
+            "Serena usa rust-analyzer para navegar el código Rust.",
+            "Instala si no lo tienes:",
+            "",
+            "```bash",
+            "rustup component add rust-analyzer   # recomendado (misma toolchain)",
+            "# o bien:",
+            "brew install rust-analyzer            # macOS",
+            "sudo apt install rust-analyzer        # Ubuntu/Debian",
+            "```",
+            "",
+            "> rust-analyzer necesita que `cargo check` funcione. Ejecuta `cargo fetch` primero.",
+            "",
+        ]
+
+    if "go" in stacks:
+        lines += [
+            "### Go — gopls",
+            "",
+            "Serena usa gopls para navegar el código Go.",
+            "Instala si no lo tienes:",
+            "",
+            "```bash",
+            "go install golang.org/x/tools/gopls@latest",
+            "```",
+            "",
+            "> gopls necesita que los módulos estén descargados. Ejecuta `go mod download` primero.",
+            "",
+        ]
+
+    if not any(s in stacks for s in ("cmake", "maven", "gradle", "rust", "go")):
         lines += [
             "### Stack genérico",
             "",
@@ -209,6 +242,10 @@ def _serena_args(root: Path, stacks: list[str]) -> list[str]:
         return _serena_cmake_args(root)
     if "maven" in stacks or "gradle" in stacks:
         return _serena_jvm_args(root)
+    if "rust" in stacks:
+        return _serena_rust_args(root)
+    if "go" in stacks:
+        return _serena_go_args(root)
     return _serena_generic_args(root)
 
 
@@ -227,6 +264,22 @@ def _serena_jvm_args(root: Path) -> list[str]:
         "serena",
         "--project-root", str(root),
         "--lsp-binary", "jdtls",
+    ]
+
+
+def _serena_rust_args(root: Path) -> list[str]:
+    return [
+        "serena",
+        "--project-root", str(root),
+        "--lsp-binary", "rust-analyzer",
+    ]
+
+
+def _serena_go_args(root: Path) -> list[str]:
+    return [
+        "serena",
+        "--project-root", str(root),
+        "--lsp-binary", "gopls",
     ]
 
 

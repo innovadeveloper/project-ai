@@ -13,6 +13,8 @@ from project_ai.doctor import (
     DoctorReport,
     ServiceCheck,
     _compare,
+    _find_android_ndk,
+    _find_android_sdk,
     _parse_jdk_major,
     _parse_ver,
     doctor,
@@ -501,3 +503,280 @@ def test_cli_doctor_no_subcommand_help():
         capture_output=True, text=True,
     )
     assert "doctor" in result.stdout
+
+
+# --------------------------------------------------------------------------
+# Android SDK / NDK checks
+# --------------------------------------------------------------------------
+
+def _android_info(compile_sdk: str | None = "33", has_ndk: bool = False) -> ProjectInfo:
+    """ProjectInfo con facts Android como los generaría gradle.py."""
+    info = ProjectInfo(root="/fake")
+    if compile_sdk:
+        info.set_fact("android.compileSdk", Fact(
+            compile_sdk, SourcePriority.BUILD, Status.INFERRED,
+        ))
+    if has_ndk:
+        info.set_fact("android.ndk", Fact(
+            True, SourcePriority.BUILD, Status.INFERRED,
+        ))
+    return info
+
+
+@patch("project_ai.doctor._find_android_sdk", return_value=None)
+@patch("project_ai.doctor._run_cmd", return_value=None)
+def test_android_sdk_missing(mock_run, mock_sdk, tmp_path):
+    info = _android_info("33")
+    report = doctor(tmp_path, info=info, skip_services=True)
+    sdk_check = next((c for c in report.checks if c.key == "android_sdk"), None)
+    assert sdk_check is not None
+    assert sdk_check.status == CheckStatus.MISSING
+    assert sdk_check.install_cmd is not None
+
+
+@patch("project_ai.doctor._find_android_sdk", return_value="/fake/sdk")
+@patch("project_ai.doctor._run_cmd", return_value=None)
+def test_android_sdk_found_platform_missing(mock_run, mock_sdk, tmp_path):
+    info = _android_info("33")
+    report = doctor(tmp_path, info=info, skip_services=True)
+    sdk_check = next((c for c in report.checks if c.key == "android_sdk"), None)
+    assert sdk_check is not None
+    # /fake/sdk/platforms/android-33 no existe → WRONG_VERSION
+    assert sdk_check.status == CheckStatus.WRONG_VERSION
+    assert "android-33" in (sdk_check.install_cmd or "")
+
+
+@patch("project_ai.doctor._find_android_sdk")
+@patch("project_ai.doctor._run_cmd", return_value=None)
+def test_android_sdk_found_platform_ok(mock_run, mock_sdk, tmp_path):
+    # Crear platform dir real
+    platform_dir = tmp_path / "sdk" / "platforms" / "android-33"
+    platform_dir.mkdir(parents=True)
+    mock_sdk.return_value = str(tmp_path / "sdk")
+    info = _android_info("33")
+    report = doctor(tmp_path, info=info, skip_services=True)
+    sdk_check = next((c for c in report.checks if c.key == "android_sdk"), None)
+    assert sdk_check is not None
+    assert sdk_check.status == CheckStatus.OK
+
+
+@patch("project_ai.doctor._find_android_sdk", return_value="/fake/sdk")
+@patch("project_ai.doctor._find_android_ndk", return_value=None)
+@patch("project_ai.doctor._run_cmd", return_value=None)
+def test_android_ndk_missing(mock_run, mock_ndk, mock_sdk, tmp_path):
+    info = _android_info("33", has_ndk=True)
+    report = doctor(tmp_path, info=info, skip_services=True)
+    ndk_check = next((c for c in report.checks if c.key == "android_ndk"), None)
+    assert ndk_check is not None
+    assert ndk_check.status == CheckStatus.MISSING
+    assert ndk_check.install_cmd is not None
+
+
+@patch("project_ai.doctor._find_android_sdk", return_value="/fake/sdk")
+@patch("project_ai.doctor._find_android_ndk", return_value="/fake/sdk/ndk/26.1.0")
+@patch("project_ai.doctor._run_cmd", return_value=None)
+def test_android_ndk_found(mock_run, mock_ndk, mock_sdk, tmp_path):
+    info = _android_info("33", has_ndk=True)
+    report = doctor(tmp_path, info=info, skip_services=True)
+    ndk_check = next((c for c in report.checks if c.key == "android_ndk"), None)
+    assert ndk_check is not None
+    assert ndk_check.status == CheckStatus.OK
+    assert "26.1.0" in (ndk_check.found or "")
+
+
+@patch("project_ai.doctor._find_android_sdk", return_value=None)
+@patch("project_ai.doctor._run_cmd", return_value=None)
+def test_android_no_ndk_check_without_ndk_fact(mock_run, mock_sdk, tmp_path):
+    """Si no hay android.ndk fact, no debe aparecer check de NDK."""
+    info = _android_info("33", has_ndk=False)
+    report = doctor(tmp_path, info=info, skip_services=True)
+    ndk_check = next((c for c in report.checks if c.key == "android_ndk"), None)
+    assert ndk_check is None
+
+
+@patch("project_ai.doctor._find_android_sdk", return_value=None)
+@patch("project_ai.doctor._run_cmd",
+       return_value="Android Debug Bridge version 1.0.41\nVersion 34.0.4")
+def test_android_adb_found(mock_run, mock_sdk, tmp_path):
+    info = _android_info("33")
+    report = doctor(tmp_path, info=info, skip_services=True)
+    adb_check = next((c for c in report.checks if c.key == "adb"), None)
+    assert adb_check is not None
+    assert adb_check.status == CheckStatus.OK
+    assert "1.0.41" in (adb_check.found or "")
+
+
+@patch("project_ai.doctor._find_android_sdk", return_value=None)
+@patch("project_ai.doctor._run_cmd", return_value=None)
+def test_android_adb_missing(mock_run, mock_sdk, tmp_path):
+    info = _android_info("33")
+    report = doctor(tmp_path, info=info, skip_services=True)
+    adb_check = next((c for c in report.checks if c.key == "adb"), None)
+    assert adb_check is not None
+    assert adb_check.status == CheckStatus.MISSING
+
+
+def test_android_checks_not_triggered_for_non_android(tmp_path):
+    """Para proyectos sin facts Android, no deben aparecer checks android_sdk/adb."""
+    info = ProjectInfo(root="/fake")
+    info.requirements["cmake"] = Fact("3.20", SourcePriority.BUILD, Status.INFERRED)
+    with patch("project_ai.doctor._run_cmd", return_value="cmake version 3.27.4\n"):
+        report = doctor(tmp_path, info=info, skip_services=True)
+    android_keys = {c.key for c in report.checks if c.key.startswith("android") or c.key == "adb"}
+    assert android_keys == set()
+
+
+# Helpers directos
+
+def test_find_android_sdk_env_var(monkeypatch, tmp_path):
+    sdk_dir = tmp_path / "my_sdk"
+    sdk_dir.mkdir()
+    monkeypatch.setenv("ANDROID_HOME", str(sdk_dir))
+    result = _find_android_sdk()
+    assert result == str(sdk_dir)
+
+
+def test_find_android_sdk_env_missing(monkeypatch):
+    monkeypatch.delenv("ANDROID_HOME", raising=False)
+    monkeypatch.delenv("ANDROID_SDK_ROOT", raising=False)
+    # No podemos controlar ~/Library/Android/sdk en tests, solo verificamos que no crashea
+    result = _find_android_sdk()
+    assert result is None or isinstance(result, str)
+
+
+def test_find_android_ndk_in_ndk_dir(tmp_path):
+    ndk_dir = tmp_path / "ndk" / "26.1.0"
+    ndk_dir.mkdir(parents=True)
+    result = _find_android_ndk(str(tmp_path))
+    assert result is not None
+    assert "26.1.0" in result
+
+
+def test_find_android_ndk_legacy_bundle(tmp_path):
+    legacy = tmp_path / "ndk-bundle"
+    legacy.mkdir()
+    result = _find_android_ndk(str(tmp_path))
+    assert result is not None
+    assert "ndk-bundle" in result
+
+
+def test_find_android_ndk_not_found(tmp_path):
+    result = _find_android_ndk(str(tmp_path))
+    assert result is None
+
+
+# --------------------------------------------------------------------------
+# Go checks
+# --------------------------------------------------------------------------
+
+@patch("project_ai.doctor._run_cmd")
+def test_go_ok(mock_run, tmp_path):
+    mock_run.return_value = "go version go1.21.5 linux/amd64"
+    report = doctor(tmp_path, info=_info_req(go="1.21"), skip_services=True)
+    c = next(ch for ch in report.checks if ch.key == "go")
+    assert c.status == CheckStatus.OK
+    assert c.found == "1.21.5"
+
+
+@patch("project_ai.doctor._run_cmd")
+def test_go_missing(mock_run, tmp_path):
+    mock_run.return_value = None
+    report = doctor(tmp_path, info=_info_req(go="1.21"), skip_services=True)
+    c = next(ch for ch in report.checks if ch.key == "go")
+    assert c.status == CheckStatus.MISSING
+    assert c.install_cmd is not None
+
+
+@patch("project_ai.doctor._run_cmd")
+def test_go_wrong_version(mock_run, tmp_path):
+    mock_run.return_value = "go version go1.18.0 linux/amd64"
+    report = doctor(tmp_path, info=_info_req(go="1.21"), skip_services=True)
+    c = next(ch for ch in report.checks if ch.key == "go")
+    assert c.status == CheckStatus.WRONG_VERSION
+
+
+@patch("project_ai.doctor._run_cmd")
+def test_go_install_cmd_macos(mock_run, tmp_path):
+    mock_run.return_value = None
+    report = doctor(tmp_path, info=_info_req(go="1.21"), skip_services=True,
+                    os_hint="macos")
+    c = next(ch for ch in report.checks if ch.key == "go")
+    assert "brew" in (c.install_cmd or "")
+
+
+@patch("project_ai.doctor._run_cmd")
+def test_go_install_cmd_linux(mock_run, tmp_path):
+    mock_run.return_value = None
+    report = doctor(tmp_path, info=_info_req(go="1.21"), skip_services=True,
+                    os_hint="linux")
+    c = next(ch for ch in report.checks if ch.key == "go")
+    assert c.install_cmd is not None
+
+
+@patch("project_ai.doctor._run_cmd")
+def test_go_install_cmd_windows(mock_run, tmp_path):
+    mock_run.return_value = None
+    report = doctor(tmp_path, info=_info_req(go="1.21"), skip_services=True,
+                    os_hint="windows")
+    c = next(ch for ch in report.checks if ch.key == "go")
+    assert "winget" in (c.install_cmd or "")
+
+
+# --------------------------------------------------------------------------
+# Rust checks
+# --------------------------------------------------------------------------
+
+@patch("project_ai.doctor._run_cmd")
+def test_rust_ok(mock_run, tmp_path):
+    mock_run.return_value = "rustc 1.75.0 (82e1608df 2023-12-21)"
+    report = doctor(tmp_path, info=_info_req(rust="1.70"), skip_services=True)
+    c = next(ch for ch in report.checks if ch.key == "rust")
+    assert c.status == CheckStatus.OK
+    assert c.found == "1.75.0"
+
+
+@patch("project_ai.doctor._run_cmd")
+def test_rust_missing(mock_run, tmp_path):
+    mock_run.return_value = None
+    report = doctor(tmp_path, info=_info_req(rust="1.70"), skip_services=True)
+    c = next(ch for ch in report.checks if ch.key == "rust")
+    assert c.status == CheckStatus.MISSING
+    assert c.install_cmd is not None
+
+
+@patch("project_ai.doctor._run_cmd")
+def test_rust_wrong_version(mock_run, tmp_path):
+    mock_run.return_value = "rustc 1.56.0 (09c42c458 2021-10-18)"
+    report = doctor(tmp_path, info=_info_req(rust="1.70"), skip_services=True)
+    c = next(ch for ch in report.checks if ch.key == "rust")
+    assert c.status == CheckStatus.WRONG_VERSION
+
+
+@patch("project_ai.doctor._run_cmd")
+def test_rust_install_cmd_macos(mock_run, tmp_path):
+    mock_run.return_value = None
+    report = doctor(tmp_path, info=_info_req(rust="1.70"), skip_services=True,
+                    os_hint="macos")
+    c = next(ch for ch in report.checks if ch.key == "rust")
+    assert "rustup" in (c.install_cmd or "")
+
+
+@patch("project_ai.doctor._run_cmd")
+def test_rust_install_cmd_windows(mock_run, tmp_path):
+    mock_run.return_value = None
+    report = doctor(tmp_path, info=_info_req(rust="1.70"), skip_services=True,
+                    os_hint="windows")
+    c = next(ch for ch in report.checks if ch.key == "rust")
+    assert "winget" in (c.install_cmd or "")
+
+
+# --------------------------------------------------------------------------
+# c_standard skip
+# --------------------------------------------------------------------------
+
+@patch("project_ai.doctor._run_cmd")
+def test_c_standard_skipped(mock_run, tmp_path):
+    """c_standard no debe producir un check (no hay herramienta que verificar)."""
+    mock_run.return_value = None
+    report = doctor(tmp_path, info=_info_req(c_standard="11"), skip_services=True)
+    assert not any(ch.key == "c_standard" for ch in report.checks)

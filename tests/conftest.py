@@ -2083,6 +2083,127 @@ void main() {
 }
 
 # ---------------------------------------------------------------------------
+# Fixtures Go
+# ---------------------------------------------------------------------------
+
+# API REST con Gin + PostgreSQL (estructura cmd/)
+GO_GIN_API = {
+    "go.mod": """\
+module github.com/acme/device-api
+
+go 1.21
+
+require (
+\tgithub.com/gin-gonic/gin v1.9.1
+\tgithub.com/lib/pq v1.10.9
+\tgithub.com/go-redis/redis/v9 v9.3.0
+)
+
+require (
+\tgolang.org/x/net v0.18.0 // indirect
+)
+""",
+    "go.sum": "github.com/gin-gonic/gin v1.9.1 h1:...\n",
+    "cmd/server/main.go": """\
+package main
+
+import (
+\t"github.com/gin-gonic/gin"
+\t"github.com/acme/device-api/internal/handler"
+)
+
+func main() {
+\tr := gin.Default()
+\tr.GET("/api/devices", handler.ListDevices)
+\tr.POST("/api/devices", handler.CreateDevice)
+\tr.GET("/api/devices/:id", handler.GetDevice)
+\tr.Run(":8080")
+}
+""",
+    "internal/handler/device.go": """\
+package handler
+
+import "github.com/gin-gonic/gin"
+
+func ListDevices(c *gin.Context) {
+\tc.JSON(200, gin.H{"devices": []string{}})
+}
+
+func CreateDevice(c *gin.Context) {
+\tc.JSON(201, gin.H{"id": "new"})
+}
+
+func GetDevice(c *gin.Context) {
+\tc.JSON(200, gin.H{"id": c.Param("id")})
+}
+""",
+    "Makefile": "build:\n\tgo build -o bin/server ./cmd/server\ntest:\n\tgo test ./...\n",
+    ".gitignore": "bin/\n",
+}
+
+# Librería Go pura (sin main)
+GO_LIBRARY = {
+    "go.mod": """\
+module github.com/acme/go-utils
+
+go 1.20
+
+require (
+\tgolang.org/x/text v0.14.0
+)
+""",
+    "utils.go": "package utils\n\nfunc Slugify(s string) string { return s }\n",
+    "utils_test.go": "package utils_test\n",
+}
+
+# Go con net/http estándar (sin frameworks externos)
+GO_STD_HTTP = {
+    "go.mod": """\
+module github.com/acme/simple-api
+
+go 1.22
+
+require (
+\tgithub.com/jackc/pgx/v5 v5.5.0
+)
+""",
+    "main.go": """\
+package main
+
+import (
+\t"net/http"
+)
+
+func main() {
+\thttp.HandleFunc("/health", healthHandler)
+\thttp.HandleFunc("/api/users", usersHandler)
+\thttp.ListenAndServe(":8080", nil)
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {}
+func usersHandler(w http.ResponseWriter, r *http.Request) {}
+""",
+}
+
+# Go con múltiples comandos en cmd/
+GO_MULTI_CMD = {
+    "go.mod": """\
+module github.com/acme/tools
+
+go 1.21
+
+require (
+\tgithub.com/spf13/cobra v1.8.0
+\tgithub.com/twmb/franz-go v1.15.0
+\tgithub.com/redis/go-redis/v9 v9.3.0
+)
+""",
+    "cmd/worker/main.go": "package main\nfunc main() {}\n",
+    "cmd/cli/main.go": "package main\nfunc main() {}\n",
+    "cmd/api/main.go": "package main\nfunc main() {}\n",
+}
+
+# ---------------------------------------------------------------------------
 # Fixtures para repomap — nuevos lenguajes
 # ---------------------------------------------------------------------------
 
@@ -2284,4 +2405,378 @@ flutter:
   uses-material-design: true
 """,
     "android/build.gradle": 'buildscript { ext.kotlin_version = "1.9.0" }\n',
+}
+
+# Spring Boot con application.yml completo
+SPRING_WITH_CONFIG = {
+    "mvnw": "#!/bin/sh\n",
+    ".mvn/wrapper/maven-wrapper.properties":
+        "distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/"
+        "apache-maven/3.9.6/apache-maven-3.9.6-bin.zip\n",
+    "pom.xml": """\
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.1</version>
+    <relativePath/>
+  </parent>
+  <groupId>com.acme</groupId>
+  <artifactId>inventory-api</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <properties><java.version>21</java.version></properties>
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+""",
+    "src/main/java/com/acme/InventoryApp.java": """\
+package com.acme;
+@SpringBootApplication
+public class InventoryApp {
+    public static void main(String[] args) {}
+}
+""",
+    "src/main/resources/application.yml": """\
+server:
+  port: 9090
+  servlet:
+    context-path: /inventory
+
+spring:
+  profiles:
+    active: dev
+  datasource:
+    url: jdbc:postgresql://localhost:5432/inventory
+    username: ${DB_USER}
+    password: ${DB_PASS}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+app:
+  api-key: ${API_KEY}
+  allowed-origins: http://localhost:3000
+""",
+    "src/main/resources/application-prod.yml": """\
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:5432/inventory
+""",
+}
+
+# Spring Boot con application.properties (en lugar de YAML)
+SPRING_WITH_PROPERTIES = {
+    "pom.xml": """\
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.1</version>
+    <relativePath/>
+  </parent>
+  <groupId>com.acme</groupId>
+  <artifactId>notif-service</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <properties><java.version>17</java.version></properties>
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+""",
+    "src/main/java/com/acme/NotifApp.java": """\
+@SpringBootApplication
+public class NotifApp { public static void main(String[] a) {} }
+""",
+    "src/main/resources/application.properties": """\
+server.port=8081
+server.servlet.context-path=/api/v1
+spring.profiles.active=staging
+spring.datasource.url=jdbc:mysql://localhost:3306/notif
+spring.datasource.username=${MYSQL_USER}
+spring.datasource.password=${MYSQL_PASS}
+""",
+}
+
+# ---------------------------------------------------------------------------
+# Rust fixtures
+# ---------------------------------------------------------------------------
+
+# Actix-web API con PostgreSQL y Redis
+RUST_ACTIX_API = {
+    "Cargo.toml": """\
+[package]
+name = "device-api"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70"
+
+[[bin]]
+name = "device-api"
+path = "src/main.rs"
+
+[dependencies]
+actix-web = "4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio"] }
+redis = "0.23"
+tokio = { version = "1", features = ["full"] }
+config = "0.13"
+""",
+    "src/main.rs": """\
+use actix_web::{web, App, HttpServer};
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    HttpServer::new(|| {
+        App::new()
+            .service(list_devices)
+            .service(create_device)
+            .service(get_device)
+            .service(delete_device)
+    })
+    .bind("0.0.0.0:8080")?
+    .run()
+    .await
+}
+
+#[get("/api/devices")]
+pub async fn list_devices() -> impl actix_web::Responder {
+    actix_web::HttpResponse::Ok().json(vec!["device1"])
+}
+
+#[post("/api/devices")]
+pub async fn create_device() -> impl actix_web::Responder {
+    actix_web::HttpResponse::Created().finish()
+}
+
+#[get("/api/devices/{id}")]
+pub async fn get_device() -> impl actix_web::Responder {
+    actix_web::HttpResponse::Ok().finish()
+}
+
+#[delete("/api/devices/{id}")]
+pub async fn delete_device() -> impl actix_web::Responder {
+    actix_web::HttpResponse::NoContent().finish()
+}
+""",
+}
+
+# Library crate (sin binary, sin servicios)
+RUST_LIBRARY = {
+    "Cargo.toml": """\
+[package]
+name = "mylib"
+version = "0.2.0"
+edition = "2021"
+
+[lib]
+name = "mylib"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+""",
+    "src/lib.rs": """\
+pub fn add(a: i32, b: i32) -> i32 { a + b }
+""",
+}
+
+# Workspace con múltiples crates
+RUST_WORKSPACE = {
+    "Cargo.toml": """\
+[workspace]
+members = [
+    "api",
+    "core",
+    "worker",
+]
+resolver = "2"
+""",
+    "api/Cargo.toml": """\
+[package]
+name = "api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio"] }
+""",
+    "api/src/main.rs": """\
+use axum::{routing::get, Router};
+
+#[tokio::main]
+async fn main() {
+    let app = Router::new()
+        .route("/health", get(health))
+        .route("/users", get(list_users))
+        .route("/users/:id", get(get_user));
+    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
+}
+
+async fn health() -> &'static str { "ok" }
+async fn list_users() -> &'static str { "[]" }
+async fn get_user() -> &'static str { "{}" }
+""",
+    "core/Cargo.toml": """\
+[package]
+name = "core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+""",
+    "core/src/lib.rs": "pub struct Config {}",
+    "worker/Cargo.toml": """\
+[package]
+name = "worker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rdkafka = "0.36"
+tokio = { version = "1", features = ["full"] }
+""",
+    "worker/src/main.rs": "fn main() { println!(\"worker\"); }",
+}
+
+# Binary con Diesel ORM (postgresql), sin web framework
+RUST_CLI = {
+    "Cargo.toml": """\
+[package]
+name = "db-tool"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "db-tool"
+path = "src/main.rs"
+
+[dependencies]
+diesel = { version = "2.1", features = ["postgres"] }
+dotenvy = "0.15"
+clap = { version = "4", features = ["derive"] }
+""",
+    "src/main.rs": "fn main() { println!(\"db-tool\"); }",
+}
+
+# ---------------------------------------------------------------------------
+# Make fixtures
+# ---------------------------------------------------------------------------
+
+# Proyecto C++ con Makefile puro (sin CMakeLists.txt)
+MAKE_CPP = {
+    "Makefile": """\
+CXX      = g++
+CXXFLAGS = -std=c++17 -Wall -O2
+LDFLAGS  =
+
+SRCS = src/main.cpp src/server.cpp
+OBJS = $(SRCS:.cpp=.o)
+TARGET = myserver
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+\t$(CXX) $(LDFLAGS) -o $@ $^
+
+%.o: %.cpp
+\t$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+test:
+\t./run_tests.sh
+
+install: $(TARGET)
+\tinstall -m 755 $(TARGET) /usr/local/bin/
+
+clean:
+\trm -f $(OBJS) $(TARGET)
+
+.PHONY: all test install clean
+""",
+    "src/main.cpp": "int main() { return 0; }\n",
+    "src/server.cpp": "void serve() {}\n",
+}
+
+# Makefile C con biblioteca (sin target run)
+MAKE_C_LIB = {
+    "Makefile": """\
+CC      = gcc
+CFLAGS  = -std=c11 -fPIC -Wall
+TARGET  = libmylib.so
+
+all: $(TARGET)
+
+$(TARGET): mylib.o
+\t$(CC) -shared -o $@ $<
+
+mylib.o: mylib.c
+\t$(CC) $(CFLAGS) -c mylib.c
+
+test: $(TARGET)
+\tgcc -L. -lmylib test_mylib.c -o test_mylib && ./test_mylib
+
+clean:
+\trm -f *.o *.so test_mylib
+
+.PHONY: all test clean
+""",
+    "mylib.c": "void noop() {}\n",
+    "mylib.h": "void noop();\n",
+}
+
+# Makefile con CMakeLists.txt presente → no debe activarse (CMake tiene prioridad)
+MAKE_WITH_CMAKE = {
+    "CMakeLists.txt": "cmake_minimum_required(VERSION 3.15)\nproject(demo CXX)\n",
+    "Makefile": """\
+all:
+\tcmake --build build
+
+.PHONY: all
+""",
+    "src/main.cpp": "int main(){}\n",
+}
+
+# Makefile simple sin CXX/CC y sin target test
+MAKE_SIMPLE = {
+    "Makefile": """\
+all:
+\techo "building"
+
+.PHONY: all
+""",
 }

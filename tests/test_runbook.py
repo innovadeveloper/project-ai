@@ -13,6 +13,7 @@ from project_ai.runbook import (
     _collect_setup_items,
     _make_cmd_steps,
     _make_service_steps,
+    _run_success_hint,
     _with_tee,
     runbook,
 )
@@ -374,3 +375,94 @@ def test_runbook_cli(tmp_path):
     assert r.returncode in (0, 1)  # 0=ok, 1=hay warnings
     assert "# RUNBOOK" in r.stdout
     assert (tmp_path / ".project-ai" / RUNBOOK_FILE).exists()
+
+
+# --------------------------------------------------------------------------
+# spring.port → success_hint del paso run
+# --------------------------------------------------------------------------
+
+def _info_spring(port: str, ctx: str | None = None) -> ProjectInfo:
+    info = ProjectInfo(root="/fake")
+    info.set_fact("spring.port", Fact(port, SourcePriority.EXPLICIT, Status.INFERRED))
+    if ctx:
+        info.set_fact("spring.context_path", Fact(ctx, SourcePriority.EXPLICIT, Status.INFERRED))
+    info.add_command(Command(name="run", shell="mvn spring-boot:run", success_hint="Started"))
+    return info
+
+
+def test_run_success_hint_with_port():
+    info = _info_spring("9090")
+    hint = _run_success_hint(info)
+    assert hint is not None
+    assert "9090" in hint
+    assert "curl" in hint
+
+
+def test_run_success_hint_with_port_and_context():
+    info = _info_spring("9090", "/inventory")
+    hint = _run_success_hint(info)
+    assert "/inventory" in hint
+    assert "9090" in hint
+
+
+def test_run_success_hint_no_port():
+    info = ProjectInfo(root="/fake")
+    assert _run_success_hint(info) is None
+
+
+def test_make_cmd_steps_uses_spring_port():
+    info = _info_spring("8081", "/api/v1")
+    steps = _make_cmd_steps(info)
+    run_step = next(s for s in steps if s.kind == "run")
+    assert "8081" in (run_step.success_if or "")
+    assert "/api/v1" in (run_step.success_if or "")
+
+
+def test_make_cmd_steps_keeps_original_hint_without_port():
+    info = ProjectInfo(root="/fake")
+    info.add_command(Command(name="run", shell="cargo run", success_hint="listening on"))
+    steps = _make_cmd_steps(info)
+    run_step = next(s for s in steps if s.kind == "run")
+    assert run_step.success_if == "listening on"
+
+
+# --------------------------------------------------------------------------
+# config.required_env → ítem de setup
+# --------------------------------------------------------------------------
+
+def test_setup_items_required_env():
+    info = ProjectInfo(root="/fake")
+    info.set_fact("config.required_env",
+                  Fact(["DB_USER", "DB_PASS", "API_KEY"], SourcePriority.EXPLICIT, Status.INFERRED))
+    items = _collect_setup_items(None, info)
+    assert len(items) == 1
+    assert "DB_USER" in items[0]
+    assert "DB_PASS" in items[0]
+
+
+def test_setup_items_no_env_without_fact():
+    info = ProjectInfo(root="/fake")
+    items = _collect_setup_items(None, info)
+    assert items == []
+
+
+def test_setup_items_combined_doctor_and_env():
+    info = ProjectInfo(root="/fake")
+    info.set_fact("config.required_env",
+                  Fact(["SECRET"], SourcePriority.EXPLICIT, Status.INFERRED))
+
+    mock_check = MagicMock()
+    mock_check.status = "missing"
+    mock_check.key = "go"
+    mock_check.needed = "1.21"
+    mock_check.found = None
+    mock_check.install_cmd = "brew install go"
+
+    mock_report = MagicMock()
+    mock_report.checks = [mock_check]
+
+    items = _collect_setup_items(mock_report, info)
+    assert len(items) == 2
+    keys = " ".join(items)
+    assert "go" in keys
+    assert "SECRET" in keys

@@ -13,7 +13,10 @@ from . import dotnet      # .NET / ASP.NET Core
 from . import gradle      # Gradle / Android / Kotlin
 from . import javascript  # JavaScript / TypeScript / HTML
 from . import flutter     # Flutter / Dart
+from . import go          # Go (módulos go.mod)
+from . import rust        # Rust (Cargo.toml)
+from . import make        # Make (Makefile puro, sin CMakeLists)
 
 __all__ = ["REGISTRY", "Adapter", "all_adapters", "register", "run_adapters",
            "hints", "maven", "cmake", "conan", "python", "dotnet", "gradle",
-           "javascript", "flutter"]
+           "javascript", "flutter", "go", "rust", "make"]

@@ -83,10 +83,15 @@ Criterio: con el fixture de netclient, salen `cmake`, `conan=2`, `cxx_standard`,
 ejecutables `sample_test` y `event_loop_demo`, y comandos
 deps → configure → build que coinciden con `.vscode/tasks.json`.
 
-### `adapters/make.py` (pequeño) — 🔜 siguiente si se necesita
+### `adapters/rust.py` ✅
+- ✅ `Cargo.toml` → rust-version EXPLICIT, edition → inferido BUILD; workspace con members;
+  framework (actix-web/axum/rocket/warp/poem/tide); servicios (postgresql/redis/kafka/rabbitmq/sqlite/mongodb);
+  endpoints actix/axum/rocket; comandos cargo fetch/build/test/run. 34 tests.
+
+### `adapters/make.py` ✅
 Solo si hay `Makefile` **no generado** y no hay CMakeLists: targets (`all`,
 `test`, `install`), variables `CXX`, `CXXFLAGS -std=`. Sugerir `bear -- make`
-para compile_commands.
+para compile_commands. 19 tests.
 
 ## Fase C — Núcleo del flujo 🔜
 
@@ -221,7 +226,9 @@ Reglas iniciales mínimas (escribirlas con tests): JDK incorrecto, lombok/JDK,
   pegar en cualquier chat local; respeta presupuesto de tokens.
 - ✅ `setup_agent.py` — `project-ai setup-agent <ruta>`: genera
   `.project-ai/setup-agent.md` con config JSON de OpenCode, config MCP de Serena
-  por stack (clangd/jdtls), verificaciones curl y ejemplo de uso.
+  por stack (clangd/jdtls/rust-analyzer/gopls), verificaciones curl y ejemplo de uso.
+  **Mejora**: soporte rust-analyzer para stack `rust` y gopls para stack `go`;
+  prioridad cmake > maven/gradle > rust > go > genérico; 24 tests.
 
 ## Fase G — Medir el alcance (sin Claude) ⏳
 - `docs/EVAL.md`: 10 tareas reales por stack (consulta, edición pequeña, nueva

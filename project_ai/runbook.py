@@ -197,7 +197,7 @@ def runbook(
     # --- Recopilar pasos en orden -------------------------------------------
     raw: list[RunStep] = []
 
-    setup_items = _collect_setup_items(doctor_report)
+    setup_items = _collect_setup_items(doctor_report, info)
     if setup_items:
         raw.append(RunStep(
             number=0, kind="setup",
@@ -233,25 +233,37 @@ def runbook(
 # Helpers
 # --------------------------------------------------------------------------
 
-def _collect_setup_items(doctor_report) -> list[str]:
-    """Extrae ítems de setup de un DoctorReport (si se pasa)."""
-    if doctor_report is None:
-        return []
-    bad_statuses = {"missing", "wrong_version"}
+def _collect_setup_items(doctor_report, info=None) -> list[str]:
+    """Extrae ítems de setup de un DoctorReport y de config.required_env."""
     items: list[str] = []
-    for check in doctor_report.checks:
-        if check.status not in bad_statuses:
-            continue
-        msg = f"**{check.key}**"
-        if check.needed:
-            msg += f": necesitas `{check.needed}`"
-        if check.found:
-            msg += f", tienes `{check.found}`"
-        elif check.status == "missing":
-            msg += ", no encontrado en PATH"
-        if check.install_cmd:
-            msg += f" → `{check.install_cmd}`"
-        items.append(msg)
+
+    if doctor_report is not None:
+        bad_statuses = {"missing", "wrong_version"}
+        for check in doctor_report.checks:
+            if check.status not in bad_statuses:
+                continue
+            msg = f"**{check.key}**"
+            if check.needed:
+                msg += f": necesitas `{check.needed}`"
+            if check.found:
+                msg += f", tienes `{check.found}`"
+            elif check.status == "missing":
+                msg += ", no encontrado en PATH"
+            if check.install_cmd:
+                msg += f" → `{check.install_cmd}`"
+            items.append(msg)
+
+    # Variables de entorno requeridas → generar .env.example si no existe
+    if info is not None:
+        env_fact = info.facts.get("config.required_env")
+        if env_fact and isinstance(env_fact.value, list) and env_fact.value:
+            var_lines = "\n".join(f"{v}=" for v in env_fact.value)
+            items.append(
+                f"**Variables de entorno requeridas** (sin valor por defecto):\n"
+                f"  Crea un archivo `.env` con los valores reales:\n"
+                f"  ```\n{var_lines}\n  ```"
+            )
+
     return items
 
 
@@ -285,15 +297,32 @@ def _make_service_steps(info: ProjectInfo, os_: str) -> list[RunStep]:
     return steps
 
 
+def _run_success_hint(info: ProjectInfo) -> str | None:
+    """Genera un hint de éxito para el paso 'run' si hay puerto Spring conocido."""
+    port_fact = info.facts.get("spring.port")
+    if not port_fact:
+        return None
+    port = port_fact.value
+    ctx_fact = info.facts.get("spring.context_path")
+    ctx = (ctx_fact.value if ctx_fact else "").rstrip("/")
+    return f"log 'Started ... in N seconds' y: curl http://localhost:{port}{ctx}/actuator/health"
+
+
 def _make_cmd_steps(info: ProjectInfo) -> list[RunStep]:
     """Construye pasos ejecutables a partir de info.commands en orden canónico."""
     steps: list[RunStep] = []
     seen: set[str] = set()
 
+    # Calcular hint de éxito para el paso run basado en spring.port
+    run_success = _run_success_hint(info)
+
     for kind in _KIND_ORDER:
         cmd = info.commands.get(kind)
         if cmd is None:
             continue
+        success = cmd.success_hint
+        if kind == "run" and run_success:
+            success = run_success
         steps.append(RunStep(
             number=0,
             kind=kind,
@@ -301,7 +330,7 @@ def _make_cmd_steps(info: ProjectInfo) -> list[RunStep]:
             shell=cmd.shell,
             cwd=cmd.cwd,
             ide_hint=cmd.ide_hint,
-            success_if=cmd.success_hint,
+            success_if=success,
         ))
         seen.add(kind)
 

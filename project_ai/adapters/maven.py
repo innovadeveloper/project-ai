@@ -88,6 +88,60 @@ _METHOD_RX = re.compile(
     r"[\w<>\[\],.?\s]+?\s+(\w+)\s*\(")
 _NOT_METHOD = ("return ", "if ", "if(", "for ", "for(", "while", "new ", "throw ", "else")
 
+# Variables de entorno sin default: ${VAR} pero NO ${VAR:valor} ni ${VAR:${OTRO}}
+_RX_ENV_VAR_NO_DEFAULT = re.compile(r'\$\{([A-Z_][A-Z0-9_]+)\}(?!\s*[:\?])')
+
+# --------------------------------------------------------------------------
+# Parsers de application.yml / application.properties (sin PyYAML)
+# --------------------------------------------------------------------------
+
+def _fnmatch_simple(name: str, pat: str) -> bool:
+    return fnmatch.fnmatch(name, pat)
+
+
+def _parse_spring_yaml(text: str) -> tuple[str | None, str | None, list[str] | None]:
+    """Extrae (port, context-path, active-profiles) de application.yml con regex."""
+    port = ctx = profiles = None
+
+    # server.port: 8080
+    m = re.search(r'(?m)^[ \t]*port\s*:\s*(\d+)', text)
+    if m:
+        port = m.group(1)
+
+    # server.servlet.context-path: /api
+    m = re.search(r'(?m)^[ \t]*context-path\s*:\s*([^\s#\n]+)', text)
+    if m:
+        ctx = m.group(1).strip('"\'')
+
+    # spring.profiles.active: dev,local  o  spring.profiles.active: [dev, local]
+    m = re.search(r'(?m)^[ \t]*active\s*:\s*([^\n#]+)', text)
+    if m:
+        raw = m.group(1).strip().strip("[]")
+        profiles = [p.strip().strip("\"'") for p in raw.split(",") if p.strip()]
+
+    return port, ctx, profiles or None
+
+
+def _parse_spring_properties(text: str) -> tuple[str | None, str | None, list[str] | None]:
+    """Extrae (port, context-path, active-profiles) de application.properties."""
+    port = ctx = None
+    profiles: list[str] | None = None
+
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key, val = key.strip(), val.strip()
+        if key == "server.port":
+            port = val
+        elif key == "server.servlet.context-path":
+            ctx = val
+        elif key == "spring.profiles.active":
+            profiles = [p.strip() for p in val.split(",") if p.strip()]
+
+    return port, ctx, profiles
+
 
 # --------------------------------------------------------------------------
 # Modelo interno de un pom
@@ -286,6 +340,8 @@ class MavenAdapter(Adapter):
         self._entry_points(sc, info, poms, kinds)
         self._endpoints(sc, info, poms)
         self._commands(sc, info, poms, kinds, detections)
+        if boot:
+            self._spring_config(sc, info, poms, kinds)
 
     # ------------------------------------------------------------------ partes
     def _wrapper(self, sc: ProjectScanner, info: ProjectInfo) -> None:
@@ -714,6 +770,83 @@ class MavenAdapter(Adapter):
                 "http://localhost:8080/ responde")
         elif k == "application":
             cmd("run", f"java -jar {art}", "IntelliJ: Run sobre la clase con main()")
+
+    def _spring_config(self, sc, info, poms, kinds) -> None:
+        """Lee application*.yml y application*.properties en módulos Spring Boot."""
+        spring_dirs = {p.dir for p in poms if kinds[p.file] in ("spring-boot-app", "application")}
+        if not spring_dirs:
+            spring_dirs = {p.dir for p in poms}  # fallback: todos los módulos
+
+        # Patrones de archivos de configuración Spring
+        config_patterns = (
+            "application.yml", "application.yaml",
+            "application.properties",
+            "application-*.yml", "application-*.yaml",
+            "application-*.properties",
+        )
+
+        files: list[str] = []
+        for d in spring_dirs:
+            prefix = "" if not d else d + "/"
+            resources = prefix + "src/main/resources/"
+            for f in sc.glob(resources + "**/*"):
+                name = f.rsplit("/", 1)[-1] if "/" in f else f
+                if any(_fnmatch_simple(name, pat) for pat in config_patterns):
+                    files.append(f)
+        # Procesar application.yml/.properties base ANTES que los de perfil (application-prod.yml...)
+        files.sort(key=lambda f: (0 if re.search(r'application\.(yml|yaml|properties)$', f) else 1))
+
+        port_set = False
+        ctx_set = False
+        profiles_set = False
+        env_vars: list[str] = []
+        env_seen: set[str] = set()
+
+        for file_rel in files:
+            text = sc.read_text(file_rel) or ""
+            is_yaml = file_rel.endswith((".yml", ".yaml"))
+
+            if is_yaml:
+                port, ctx, profiles = _parse_spring_yaml(text)
+            else:
+                port, ctx, profiles = _parse_spring_properties(text)
+
+            if port and not port_set:
+                info.set_fact("spring.port", Fact(
+                    value=port, priority=P.EXPLICIT,
+                    evidence=[ev(file_rel, None)], adapter=NAME,
+                ))
+                port_set = True
+
+            if ctx and not ctx_set:
+                info.set_fact("spring.context_path", Fact(
+                    value=ctx, priority=P.EXPLICIT,
+                    evidence=[ev(file_rel, None)], adapter=NAME,
+                ))
+                ctx_set = True
+
+            if profiles and not profiles_set:
+                info.set_fact("spring.active_profiles", Fact(
+                    value=profiles, priority=P.EXPLICIT,
+                    evidence=[ev(file_rel, None)], adapter=NAME,
+                ))
+                profiles_set = True
+
+            # Variables de entorno sin default: ${VAR} (no ${VAR:default})
+            for m in _RX_ENV_VAR_NO_DEFAULT.finditer(text):
+                var = m.group(1)
+                if var not in env_seen:
+                    env_seen.add(var)
+                    env_vars.append(var)
+
+        if env_vars:
+            info.set_fact("config.required_env", Fact(
+                value=env_vars, priority=P.EXPLICIT,
+                evidence=[ev(files[0], None)] if files else [],
+                adapter=NAME,
+                note="Variables de entorno requeridas sin valor por defecto "
+                     "(útil para generar .env.example)",
+            ))
 
 
 # --------------------------------------------------------------------------

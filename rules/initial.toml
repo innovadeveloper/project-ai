@@ -105,6 +105,69 @@ refs = []
 example = "SDK location not found. Define a valid SDK location with an ANDROID_HOME environment variable"
 
 [[rule]]
+id = "android-ndk-not-found"
+stack = ["gradle", "cmake"]
+match = "NDK not configured|No version of NDK matched|NDK directory '(.+)' does not exist|Requested NDK version .* did not match"
+cause = "El proyecto usa código C++ nativo y el NDK no está instalado o la versión no coincide"
+fix = "En Android Studio: SDK Manager → SDK Tools → NDK (Side by side). O: sdkmanager \"ndk;<version>\" (ver android.ndk en env-report.md)"
+refs = ["facts.android.ndk"]
+example = "NDK not configured. Download it with SDK manager. Preferred NDK version is '26.1.10909125'"
+
+[[rule]]
+id = "android-platform-missing"
+stack = ["gradle"]
+match = "failed to find target with hash string 'android-(\\d+)'|Installed Build Tools revision .* is corrupted|AAPT2 aapt2-.* Daemon #\\d+ is busy"
+cause = "La plataforma Android (compileSdk) no está instalada en el SDK"
+fix = "sdkmanager \"platforms;android-<compileSdk>\" (ver android.compileSdk en project.json)"
+refs = ["facts.android.compileSdk"]
+example = "failed to find target with hash string 'android-33' in: /home/user/Android/Sdk"
+
+[[rule]]
+id = "android-build-tools-missing"
+stack = ["gradle"]
+match = "failed to find Build Tools revision|Build Tools .* is missing|No version of the SDK Build Tools"
+cause = "Las Build Tools de Android requeridas no están instaladas"
+fix = "sdkmanager \"build-tools;<version>\"  (la versión aparece en el error o en app/build.gradle)"
+refs = []
+example = "failed to find Build Tools revision 34.0.0"
+
+[[rule]]
+id = "android-gradlew-permission"
+stack = ["gradle"]
+match = "Permission denied.*gradlew|gradlew.*Permission denied|'./gradlew'.*not found|gradlew: command not found"
+cause = "El wrapper de Gradle no tiene permiso de ejecución"
+fix = "chmod +x gradlew"
+refs = []
+example = "zsh: Permission denied: ./gradlew script"
+
+[[rule]]
+id = "android-jdk-agp-incompatible"
+stack = ["gradle"]
+match = "Minimum supported Gradle version is|AGP requires Java (\\d+)|Unsupported Java.*JDK (\\d+).*requires at least (\\d+)"
+cause = "El JDK activo es demasiado antiguo para la versión de AGP (Android Gradle Plugin)"
+fix = "Activa un JDK más nuevo (ver env-report.md). AGP 8.x requiere JDK 17+; AGP 7.x requiere JDK 11+"
+refs = ["requirements.jdk", "facts.android.agp_version"]
+example = "Minimum supported Gradle version is 8.0. Current version is 7.6."
+
+[[rule]]
+id = "android-no-device"
+stack = ["gradle"]
+match = "No connected devices|INSTALL_FAILED_NO_MATCHING_ABIS|No target device found|error: no devices/emulators found"
+cause = "No hay dispositivo Android conectado ni emulador activo para instalar o ejecutar la app"
+fix = "Conecta un dispositivo físico (USB, habilita Depuración USB) o lanza un AVD en Android Studio"
+refs = []
+example = "error: no devices/emulators found"
+
+[[rule]]
+id = "gradle-daemon-oom"
+stack = ["gradle"]
+match = "Could not reserve enough space for .* object heap|GC overhead limit exceeded|Java heap space.*Gradle|Gradle build daemon disappeared"
+cause = "El daemon de Gradle se quedó sin memoria"
+fix = "Aumenta la heap en gradle.properties: org.gradle.jvmargs=-Xmx4g  (o -Xmx2g si la máquina tiene poca RAM)"
+refs = []
+example = "Could not reserve enough space for 2097152KB object heap"
+
+[[rule]]
 id = "port-in-use"
 stack = ["*"]
 match = "Address already in use|Port (\\d+) was already in use|EADDRINUSE"
@@ -121,3 +184,101 @@ cause = "La base de datos no está levantada o no escucha en ese puerto"
 fix = "Levanta el servicio (compose del repo si existe, o brew/apt) y revisa la URL JDBC"
 refs = ["services"]
 example = "org.postgresql.util.PSQLException: Connection to localhost:5432 refused."
+
+# --------------------------------------------------------------------------
+# Rust
+# --------------------------------------------------------------------------
+
+[[rule]]
+id = "rust-borrow-checker"
+stack = ["rust"]
+match = 'error\[E0502\]|error\[E0505\]|error\[E0506\]|error\[E0382\]|cannot borrow .* as mutable because it is also borrowed as immutable|cannot move out of .* because it is borrowed'
+cause = "Error del borrow checker: uso incorrecto de referencias o movimiento de un valor prestado"
+fix = "Lee el mensaje de error con detalle (cargo check --message-format=short). Considera clonar el valor o reestructurar los lifetime. Ver: https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html"
+refs = []
+example = "error[E0502]: cannot borrow `x` as mutable because it is also borrowed as immutable"
+
+[[rule]]
+id = "rust-type-mismatch"
+stack = ["rust"]
+match = 'error\[E0308\]: mismatched types|expected `(\S+)`, found `(\S+)`'
+cause = "El tipo devuelto o pasado no coincide con el esperado"
+fix = "Revisa el tipo esperado en el mensaje de error. Usa `.into()`, `.to_string()`, `as` o convierte explícitamente"
+refs = []
+example = "error[E0308]: mismatched types: expected `String`, found `&str`"
+
+[[rule]]
+id = "rust-unresolved-import"
+stack = ["rust"]
+match = 'error\[E0432\]: unresolved import|error\[E0433\]: failed to resolve'
+cause = "Un módulo o crate no está importado o no existe en Cargo.toml"
+fix = "Verifica el nombre del crate en Cargo.toml y que `use` coincide con la ruta real del módulo"
+refs = ["facts.rust.framework"]
+example = "error[E0432]: unresolved import `actix_web::middleware::Logger`"
+
+[[rule]]
+id = "rust-linker-error"
+stack = ["rust"]
+match = 'error: linking with .* failed|ld: library not found for|note: LINK : fatal error'
+cause = "El enlazador no encuentra una biblioteca nativa (frecuente en crates con código C, como diesel o openssl)"
+fix = "Instala la dependencia del sistema: brew install openssl / apt install libssl-dev libpq-dev. Luego: export PKG_CONFIG_PATH=..."
+refs = []
+example = "error: linking with `cc` failed: exit status: 1\n  = note: ld: library not found for -lssl"
+
+[[rule]]
+id = "rust-cargo-lock-outdated"
+stack = ["rust"]
+match = 'error: the lock file .* needs to be updated|Cargo.lock is not up to date'
+cause = "Cargo.lock no está sincronizado con Cargo.toml"
+fix = "cargo update  (o cargo build --locked si quieres reproducibilidad exacta)"
+refs = []
+example = "error: the lock file /project/Cargo.lock needs to be updated but --locked was passed"
+
+# --------------------------------------------------------------------------
+# Go
+# --------------------------------------------------------------------------
+
+[[rule]]
+id = "go-module-not-found"
+stack = ["go"]
+match = 'cannot find module providing|no required module provides|missing go\.sum entry for module|go: no module matching'
+cause = "Una dependencia de Go no está descargada o no existe en go.sum"
+fix = "go mod tidy  (actualiza go.sum) o go mod download. Si el módulo es privado, configura GONOSUMCHECK y GONOSUMDB"
+refs = []
+example = "no required module provides package github.com/gin-gonic/gin; to add it: go get github.com/gin-gonic/gin"
+
+[[rule]]
+id = "go-undefined-symbol"
+stack = ["go"]
+match = 'undefined: (\w+)|(\w+) undefined \(type \w+ has no field or method|cannot refer to unexported name'
+cause = "Se referencia un símbolo que no existe, no está exportado o pertenece a otro paquete"
+fix = "Verifica el nombre (Go es case-sensitive: mayúsculas = exportado) y el import del paquete correcto"
+refs = []
+example = "undefined: handleRequest"
+
+[[rule]]
+id = "go-build-constraint"
+stack = ["go"]
+match = 'build constraints exclude all Go files in|no Go files in|matched no packages'
+cause = "Ningún archivo .go del directorio cumple las build constraints (os, arch, tags)"
+fix = "Revisa los comentarios //go:build en los archivos. Usa GOOS=linux go build o go build -tags <tag>"
+refs = []
+example = "build constraints exclude all Go files in /project/internal/platform:"
+
+[[rule]]
+id = "go-version-mismatch"
+stack = ["go"]
+match = 'note: module requires Go ([\d.]+)|go: go\.mod file indicates Go ([\d.]+).*but installed'
+cause = "La versión de Go instalada es menor que la que requiere el módulo"
+fix = "Instala la versión correcta de Go (ver requirements.go en env-report.md)"
+refs = ["requirements.go"]
+example = "note: module requires Go 1.21"
+
+[[rule]]
+id = "go-cgo-disabled"
+stack = ["go"]
+match = 'cgo: C compiler.*not found|CGO_ENABLED=0.*does not support cgo|requires cgo'
+cause = "El paquete requiere CGO pero está desactivado o no hay compilador C disponible"
+fix = "Si CGO_ENABLED=0, cámbialo a CGO_ENABLED=1 y verifica que tienes gcc/clang instalado"
+refs = []
+example = "cgo: C compiler \"gcc\" not found: exec: \"gcc\": executable file not found in $PATH"

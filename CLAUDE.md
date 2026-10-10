@@ -142,11 +142,56 @@ Hecho y con tests (538 pasando):
 
 - `project_ai/repomap.py` — parsers nuevos para **TypeScript/JavaScript** (clases, interfaces, funciones
   exportadas, decoradores NestJS `@Controller/@Get/@Post…`), **Kotlin** (class/object/interface, `fun`,
-  Spring `@GetMapping/@PostMapping`), **Dart** (class/mixin, métodos públicos). Regex con 1 nivel de
-  anidamiento en params (`(?:[^)(]|\([^)]*\))*`); `_simplify_ts_kotlin_params()` para `name: Type`.
+  Spring `@GetMapping/@PostMapping`), **Dart** (class/mixin, métodos públicos), **Rust** (struct/enum/trait,
+  `pub fn`, attribute routes `#[get/post/...]`). Regex con 1 nivel de anidamiento en params
+  (`(?:[^)(]|\([^)]*\))*`); `_simplify_ts_kotlin_params()` y `_simplify_rust_params()` para `name: Type`.
 
-**Fases C, D, E, F y repomap multilenguaje completos. 679 tests.** Siguiente: Fase G (evaluación)
-o validar sobre proyectos reales Android/Kotlin. Ver ROADMAP.
+- `project_ai/adapters/go.py` — go.mod → versión Go EXPLICIT; kind (executable/library/multi-cmd);
+  servicios (postgresql pgx/lib-pq, redis go-redis, kafka franz-go/sarama, mysql, mongodb, etc.);
+  framework → fact `go.framework`; endpoints Gin/Echo/Fiber/gorilla/net-http; comandos go mod/build/test/run.
+- `project_ai/doctor.py` — checks Android activados por facts `android.compileSdk`/`android.ndk`:
+  `android_sdk`, `android_ndk`, `adb`. Helpers `_find_android_sdk()`, `_find_android_ndk()`.
+- `rules/initial.toml` — 7 reglas N0 nuevas Android (NDK, plataforma, gradlew, JDK-AGP, device, OOM).
+  Total: 20 reglas.
+
+- `project_ai/adapters/rust.py` — Cargo.toml → versión Rust EXPLICIT (rust-version) o BUILD (edition→min ver);
+  kind (executable/library/workspace); workspaces: lee Cargo.toml de cada member; servicios (sqlx/diesel→postgresql,
+  redis, rdkafka→kafka, lapin→rabbitmq, rusqlite→sqlite, mongodb); framework → fact `rust.framework`
+  (actix-web/axum/rocket/warp/poem/tide); endpoints actix-web builder `.route("/p", web::get())` Y attribute
+  macros `#[get("/p")]` (actix-web 4+), axum `.route("/p", get())`, rocket `#[get("/p")]`; comandos cargo fetch/build/test/run.
+
+- `project_ai/adapters/make.py` — Makefile puro (solo activa si NO hay CMakeLists.txt); CXX/CC → fact compiler
+  (HEURISTIC); CXXFLAGS -std=cXX → req cxx_standard BUILD; CFLAGS -std=c1X → req c_standard BUILD;
+  TARGET var → module name + kind (libXXX.so/.a → library, resto → executable); targets all/test/check/install
+  → comandos; hint `bear -- make` para compile_commands.json. 19 tests.
+
+- `project_ai/adapters/maven.py` (mejora) — `_spring_config()`: lee `application*.yml` y `application*.properties`
+  en módulos Spring Boot; extrae `server.port` → fact `spring.port` (EXPLICIT), context-path → `spring.context_path`,
+  `spring.profiles.active` → `spring.active_profiles`; variables `${VAR}` sin default → fact `config.required_env`
+  (útil para generar `.env.example`). Archivos base se procesan antes que los de perfil. 11 tests nuevos.
+
+- `docs/INSTALL.md` — guía de instalación y uso en macOS, Linux y Windows; flujo completo paso a paso;
+  notas por OS (rutas, tee en PowerShell, ANDROID_HOME, bear para C++); integración con Ollama;
+  referencia rápida de comandos.
+
+- `project_ai/doctor.py` — checks Go (`go version`) y Rust (`rustc --version`) en `_TOOL_CMDS`; install hints
+  para macOS/Linux/Windows (brew install go, winget install GoLang.Go, rustup curl). `_detect_os()` detecta Windows.
+  `_SKIP_KEYS` incluye `c_standard`.
+- `project_ai/runbook.py` — `_collect_setup_items()` muestra variables de entorno requeridas (fact `config.required_env`);
+  `_run_success_hint()` genera hint con `spring.port` + `spring.context_path` para el paso `run`.
+- `rules/initial.toml` — 12 reglas N0 nuevas (Rust: E0502/E0308/E0432/linker/cargo-lock; Go: module/undefined/constraint/version/cgo).
+  Total: 32 reglas.
+
+- `project_ai/setup_agent.py` (mejora) — soporte rust-analyzer (stack rust) y gopls (stack go): `_serena_rust_args()`
+  y `_serena_go_args()`; sección de prerrequisitos con instrucciones de instalación y notas (cargo fetch / go mod download);
+  `_serena_args()` prioridad: cmake > maven/gradle > rust > go > genérico. 24 tests nuevos.
+
+- `tests/test_integration.py` — 24 tests de integración end-to-end: flujo completo recon→doctor→runbook→finalize
+  sobre HMDM (Maven/Spring), NETCLIENT_FULL (CMake/Conan) y SPRING_WITH_CONFIG; consistencia entre módulos
+  (comandos recon ⊂ runbook steps; stacks en AGENTS.md).
+
+**891 tests. Stacks cubiertos: Maven/Spring, CMake/C++, Conan, Python, .NET, Gradle/Android, JS/TS, Flutter/Dart, Go, Rust, Make.**
+Siguiente: Fase G (evaluación) o validar en proyectos reales. Ver ROADMAP.
 
 ## Cómo trabajar en este repo
 
@@ -194,6 +239,7 @@ Hallazgos ya conocidos de ambos: `docs/REAL_PROJECTS.md`.
 | `docs/ADAPTER_GUIDE.md` | cómo escribir un adaptador nuevo (checklist) |
 | `docs/DECISIONS.md` | por qué se decidió cada cosa (no reabrir sin motivo) |
 | `docs/REAL_PROJECTS.md` | salidas reales de netclient/hmdm y lo que enseñaron |
+| `docs/INSTALL.md` | instalación y uso en macOS, Linux y Windows; flujo completo; Ollama |
 
 Slash commands del proyecto (`.claude/commands/`): `/siguiente-paso`,
 `/nuevo-adaptador <stack>`, `/probar-real <ruta>`.

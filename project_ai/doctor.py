@@ -89,6 +89,8 @@ _TOOL_CMDS: dict[str, tuple[list[str], re.Pattern]] = {
     "node":   (["node", "-v"],            re.compile(r'v(\S+)')),
     "clang":  (["clang++", "--version"],  re.compile(r'version\s+(\d+\.\d+(?:\.\d+)?)')),
     "gcc":    (["g++", "--version"],      re.compile(r'(\d+\.\d+\.\d+)')),
+    "go":     (["go", "version"],         re.compile(r'go(\d+\.\d+(?:\.\d+)?)')),
+    "rust":   (["rustc", "--version"],    re.compile(r'rustc\s+(\d+\.\d+(?:\.\d+)?)')),
 }
 
 # Puertos TCP por defecto para servicios de runtime
@@ -102,7 +104,7 @@ _SERVICE_PORTS: dict[str, int] = {
 }
 
 # Claves que se procesan junto con otra (no como entrada independiente)
-_SKIP_KEYS = {"jdk_ceiling", "cxx_standard"}
+_SKIP_KEYS = {"jdk_ceiling", "cxx_standard", "c_standard"}
 
 
 # --------------------------------------------------------------------------
@@ -158,6 +160,9 @@ def _run_checks(info: ProjectInfo, os_: str) -> list[Check]:
         check = _check_one(key, fact, info, os_)
         if check is not None:
             checks.append(check)
+    # Checks Android: se activan si el proyecto tiene facts de compileSdk o NDK
+    if info.facts.get("android.compileSdk") or info.facts.get("android.ndk"):
+        checks.extend(_android_checks(info, os_))
     return checks
 
 
@@ -246,19 +251,131 @@ def _check_tomcat(fact: Fact, os_: str) -> Check:
     return Check(key="tomcat", needed=needed, found=None, status=CheckStatus.UNKNOWN)
 
 
+def _find_android_sdk() -> str | None:
+    """Localiza el Android SDK en variables de entorno o rutas conocidas."""
+    for var in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):
+        val = os.environ.get(var)
+        if val and Path(val).exists():
+            return val
+    for p in (
+        Path.home() / "Library" / "Android" / "sdk",   # macOS / Android Studio
+        Path.home() / "Android" / "Sdk",                # Linux / Android Studio
+    ):
+        if p.exists():
+            return str(p)
+    return None
+
+
+def _find_android_ndk(sdk_path: str) -> str | None:
+    """Devuelve la ruta del NDK instalado dentro del SDK, o None."""
+    ndk_dir = Path(sdk_path) / "ndk"
+    if ndk_dir.exists():
+        versions = [d for d in ndk_dir.iterdir() if d.is_dir()]
+        if versions:
+            return str(sorted(versions)[-1])   # NDK más reciente
+    legacy = Path(sdk_path) / "ndk-bundle"
+    if legacy.exists():
+        return str(legacy)
+    return None
+
+
 def _check_android(fact: Fact) -> Check:
     needed = fact.value
-    sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
-    if sdk and Path(sdk).exists():
+    sdk = _find_android_sdk()
+    if sdk:
         return Check(key="android", needed=needed, found=sdk, status=CheckStatus.OK)
-    for p in [
-        Path.home() / "Library" / "Android" / "sdk",
-        Path.home() / "Android" / "Sdk",
-    ]:
-        if p.exists():
-            return Check(key="android", needed=needed, found=str(p), status=CheckStatus.OK)
     return Check(key="android", needed=needed, found=None, status=CheckStatus.MISSING,
-                 install_cmd="Instala Android Studio y configura ANDROID_HOME")
+                 install_cmd="Instala Android Studio → ANDROID_HOME se configura automáticamente")
+
+
+def _android_checks(info: ProjectInfo, os_: str) -> list[Check]:
+    """Checks adicionales para proyectos Android/Gradle: SDK, plataforma, NDK, adb."""
+    checks: list[Check] = []
+
+    compile_sdk_fact = info.facts.get("android.compileSdk")
+    compile_sdk = str(compile_sdk_fact.value) if compile_sdk_fact else None
+
+    # 1. Android SDK + plataforma compileSdk
+    sdk_path = _find_android_sdk()
+    if sdk_path is None:
+        label = f"SDK (platforms/android-{compile_sdk})" if compile_sdk else "Android SDK"
+        checks.append(Check(
+            key="android_sdk", needed=label, found=None,
+            status=CheckStatus.MISSING,
+            install_cmd="Instala Android Studio → ANDROID_HOME se configura automáticamente\n"
+                        "   o: export ANDROID_HOME=$HOME/Library/Android/sdk",
+            note="ANDROID_HOME no definido y SDK no encontrado en rutas conocidas",
+        ))
+    else:
+        if compile_sdk:
+            platform_dir = Path(sdk_path) / "platforms" / f"android-{compile_sdk}"
+            if platform_dir.exists():
+                checks.append(Check(
+                    key="android_sdk",
+                    needed=f"platforms/android-{compile_sdk}",
+                    found=str(platform_dir),
+                    status=CheckStatus.OK,
+                ))
+            else:
+                checks.append(Check(
+                    key="android_sdk",
+                    needed=f"platforms/android-{compile_sdk}",
+                    found=sdk_path,
+                    status=CheckStatus.WRONG_VERSION,
+                    install_cmd=f'sdkmanager "platforms;android-{compile_sdk}"',
+                    note=f"SDK encontrado pero falta platforms/android-{compile_sdk}",
+                ))
+        else:
+            checks.append(Check(
+                key="android_sdk", needed="Android SDK", found=sdk_path,
+                status=CheckStatus.OK,
+            ))
+
+    # 2. NDK (solo si el proyecto tiene código C++ nativo)
+    ndk_fact = info.facts.get("android.ndk")
+    if ndk_fact and ndk_fact.value:
+        ndk_path = _find_android_ndk(sdk_path) if sdk_path else None
+        if ndk_path:
+            checks.append(Check(
+                key="android_ndk", needed="NDK", found=ndk_path,
+                status=CheckStatus.OK,
+            ))
+        else:
+            checks.append(Check(
+                key="android_ndk", needed="NDK", found=None,
+                status=CheckStatus.MISSING,
+                install_cmd='En Android Studio: SDK Manager → SDK Tools → NDK (Side by side)\n'
+                            '   o: sdkmanager "ndk;<version>"',
+                note="Proyecto con código C++ nativo requiere Android NDK instalado",
+            ))
+
+    # 3. adb (platform-tools) — necesario para installDebug
+    raw_adb = _run_cmd(["adb", "--version"])
+    if raw_adb:
+        m_adb = re.search(r'Android Debug Bridge version\s+(\S+)', raw_adb)
+        adb_ver = m_adb.group(1) if m_adb else "disponible"
+        checks.append(Check(
+            key="adb", needed="platform-tools", found=adb_ver,
+            status=CheckStatus.OK,
+        ))
+    else:
+        # Puede estar en SDK aunque no esté en PATH
+        adb_bin = (Path(sdk_path) / "platform-tools" / "adb") if sdk_path else None
+        if adb_bin and adb_bin.exists():
+            checks.append(Check(
+                key="adb", needed="platform-tools", found=str(adb_bin),
+                status=CheckStatus.OK,
+                note="adb no está en PATH; añade $ANDROID_HOME/platform-tools a PATH",
+            ))
+        else:
+            checks.append(Check(
+                key="adb", needed="platform-tools", found=None,
+                status=CheckStatus.MISSING,
+                install_cmd='sdkmanager "platform-tools"',
+                note="Necesario para `installDebug` / `adb logcat`",
+            ))
+
+    return checks
 
 
 # --------------------------------------------------------------------------
@@ -351,7 +468,11 @@ def _compare(found: str, needed: str | None, ceiling: str | None) -> CheckStatus
 
 
 def _detect_os() -> str:
-    return "macos" if sys.platform == "darwin" else "linux"
+    if sys.platform == "darwin":
+        return "macos"
+    if sys.platform.startswith("win"):
+        return "windows"
+    return "linux"
 
 
 def _find_tomcat_version_sh(os_: str) -> Path | None:
@@ -418,6 +539,23 @@ def _install_cmd(key: str, needed: str | None, os_: str) -> str | None:
             "clang":  "brew install llvm",
             "gcc":    "brew install gcc",
             "tomcat": (f"brew install tomcat@{needed}" if needed else "brew install tomcat"),
+            "go":     "brew install go",
+            "rust":   "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh",
+        }
+    elif os_ == "windows":
+        cmds = {
+            "jdk":    "winget install EclipseAdoptium.Temurin.21.JDK  # o scoop install temurin21-jdk",
+            "maven":  "winget install Apache.Maven  # o scoop install maven",
+            "cmake":  "winget install Kitware.CMake",
+            "conan":  "pip install conan",
+            "ninja":  "winget install Ninja-build.Ninja",
+            "python": "winget install Python.Python.3",
+            "node":   "winget install OpenJS.NodeJS",
+            "clang":  "winget install LLVM.LLVM",
+            "gcc":    "winget install msys2.msys2  # luego: pacman -S mingw-w64-ucrt-x86_64-gcc",
+            "tomcat": "Descarga desde https://tomcat.apache.org/ y descomprime en C:\\tomcat",
+            "go":     "winget install GoLang.Go",
+            "rust":   "winget install Rustlang.Rustup  # luego: rustup install stable",
         }
     else:
         cmds = {
@@ -431,6 +569,8 @@ def _install_cmd(key: str, needed: str | None, os_: str) -> str | None:
             "clang":  "apt install clang",
             "gcc":    "apt install g++",
             "tomcat": f"apt install tomcat{needed or ''}",
+            "go":     "apt install golang-go  # o: https://go.dev/dl/",
+            "rust":   "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh",
         }
     return cmds.get(key)
 

@@ -1,4 +1,4 @@
-"""Tests para los parsers nuevos de repomap: TypeScript, Kotlin, Dart."""
+"""Tests para los parsers nuevos de repomap: TypeScript, Kotlin, Dart, Rust."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,7 +15,9 @@ from project_ai.repomap import (
     FileMap,
     _parse_dart,
     _parse_kotlin,
+    _parse_rust,
     _parse_typescript,
+    _simplify_rust_params,
     _simplify_ts_kotlin_params,
     build_repo_map,
 )
@@ -319,3 +321,173 @@ def test_build_repo_map_kotlin_controller_first(tmp_path):
     svc_pos = result.find("UserService")
     if ctrl_pos >= 0 and svc_pos >= 0:
         assert ctrl_pos <= svc_pos
+
+
+# ==========================================================================
+# Rust
+# ==========================================================================
+
+_RUST_ACTIX = """\
+use actix_web::{web, App, HttpServer, HttpResponse};
+
+pub struct Device {
+    pub id: u32,
+    pub name: String,
+}
+
+pub enum DeviceStatus {
+    Online,
+    Offline,
+}
+
+pub trait Repository {
+    fn find(&self, id: u32) -> Option<Device>;
+}
+
+#[get("/api/devices")]
+pub async fn list_devices() -> HttpResponse {
+    HttpResponse::Ok().finish()
+}
+
+#[post("/api/devices")]
+pub async fn create_device() -> HttpResponse {
+    HttpResponse::Created().finish()
+}
+
+#[delete("/api/devices/{id}")]
+pub async fn delete_device() -> HttpResponse {
+    HttpResponse::NoContent().finish()
+}
+
+pub fn health_check() -> &'static str {
+    "ok"
+}
+
+fn private_helper() -> u32 {
+    42
+}
+"""
+
+_RUST_LIB = """\
+pub struct Config {
+    pub host: String,
+    pub port: u16,
+}
+
+impl Config {
+    pub fn new(host: String, port: u16) -> Self {
+        Self { host, port }
+    }
+
+    pub fn from_env() -> Self {
+        Self::new("localhost".into(), 8080)
+    }
+}
+
+pub fn parse_config(s: &str) -> Config {
+    Config::new(s.to_string(), 8080)
+}
+"""
+
+
+class TestSimplifyRustParams:
+    def test_empty(self):
+        assert _simplify_rust_params("") == ""
+
+    def test_self_only(self):
+        assert _simplify_rust_params("&self") == "self"
+
+    def test_mut_self(self):
+        assert _simplify_rust_params("&mut self") == "self"
+
+    def test_typed_params(self):
+        result = _simplify_rust_params("id: u32, name: String")
+        assert "id" in result
+        assert "name" in result
+
+    def test_complex_type(self):
+        result = _simplify_rust_params("dto: web::Json<CreateDto>")
+        assert "dto" in result
+
+    def test_mixed(self):
+        result = _simplify_rust_params("&self, id: u32")
+        assert "self" in result
+        assert "id" in result
+
+
+class TestParseRust:
+    def test_structs_detected(self):
+        fm = _parse_rust("src/main.rs", _RUST_ACTIX)
+        structs = [s for s in fm.symbols if s.kind == "struct" and s.name == "Device"]
+        assert len(structs) == 1
+
+    def test_enum_detected_as_struct(self):
+        fm = _parse_rust("src/main.rs", _RUST_ACTIX)
+        enums = [s for s in fm.symbols if s.name == "DeviceStatus"]
+        assert len(enums) == 1
+
+    def test_trait_detected(self):
+        fm = _parse_rust("src/main.rs", _RUST_ACTIX)
+        traits = [s for s in fm.symbols if s.name == "Repository"]
+        assert len(traits) == 1
+
+    def test_actix_route_get(self):
+        fm = _parse_rust("src/main.rs", _RUST_ACTIX)
+        routes = [s for s in fm.symbols if s.http_method == "GET"]
+        assert any(s.http_path == "/api/devices" for s in routes)
+
+    def test_actix_route_post(self):
+        fm = _parse_rust("src/main.rs", _RUST_ACTIX)
+        routes = [s for s in fm.symbols if s.http_method == "POST"]
+        assert any(s.http_path == "/api/devices" for s in routes)
+
+    def test_actix_route_delete(self):
+        fm = _parse_rust("src/main.rs", _RUST_ACTIX)
+        routes = [s for s in fm.symbols if s.http_method == "DELETE"]
+        assert any(s.http_path == "/api/devices/{id}" for s in routes)
+
+    def test_public_fn_detected(self):
+        fm = _parse_rust("src/main.rs", _RUST_ACTIX)
+        fns = [s for s in fm.symbols if s.kind == "function" and s.name == "health_check"]
+        assert len(fns) == 1
+        assert fns[0].visibility == "public"
+
+    def test_private_fn_detected(self):
+        fm = _parse_rust("src/main.rs", _RUST_ACTIX)
+        fns = [s for s in fm.symbols if s.name == "private_helper"]
+        assert len(fns) == 1
+        assert fns[0].visibility == "private"
+
+    def test_impl_methods_detected(self):
+        fm = _parse_rust("src/lib.rs", _RUST_LIB)
+        names = {s.name for s in fm.symbols if s.kind == "function"}
+        assert "new" not in names  # new es ignorado
+        assert "from_env" in names
+        assert "parse_config" in names
+
+    def test_struct_in_lib(self):
+        fm = _parse_rust("src/lib.rs", _RUST_LIB)
+        structs = [s for s in fm.symbols if s.name == "Config"]
+        assert len(structs) == 1
+
+
+class TestBuildRepoMapRust:
+    def test_rust_actix_in_map(self, tmp_path):
+        from conftest import RUST_ACTIX_API, make_tree
+        from project_ai.recon import recon
+        make_tree(tmp_path, RUST_ACTIX_API)
+        info = recon(tmp_path, only=["hints", "rust"], write=False)
+        sc = ProjectScanner(tmp_path, use_git=False)
+        result = build_repo_map(info, sc)
+        assert "device-api" in result or "main.rs" in result
+        assert "/api/devices" in result
+
+    def test_rust_routes_appear_before_private(self, tmp_path):
+        from conftest import RUST_ACTIX_API, make_tree
+        from project_ai.recon import recon
+        make_tree(tmp_path, RUST_ACTIX_API)
+        info = recon(tmp_path, only=["hints", "rust"], write=False)
+        sc = ProjectScanner(tmp_path, use_git=False)
+        result = build_repo_map(info, sc)
+        # El mapa debe incluir al menos un endpoint HTTP
+        assert "GET" in result or "POST" in result

@@ -30,6 +30,7 @@ _LANG_EXT: dict[str, str] = {
     ".ts": "typescript", ".tsx": "typescript",
     ".js": "javascript", ".jsx": "javascript", ".mjs": "javascript",
     ".dart": "dart",
+    ".rs": "rust",
 }
 
 
@@ -172,6 +173,10 @@ def _count_references(sc: ProjectScanner) -> dict[str, int]:
         for m in re.finditer(r"\bimport\s+'[^']*?([^/]+)\.dart'", text):
             k = m.group(1)
             counts[k] = counts.get(k, 0) + 1
+        # Rust: use crate::module::Type  o  mod module;
+        for m in re.finditer(r'\buse\s+(?:crate|super|self)::(\w+)', text):
+            k = m.group(1)
+            counts[k] = counts.get(k, 0) + 1
     return counts
 
 
@@ -196,6 +201,8 @@ def _parse_file(fpath: str, lang: str, text: str) -> FileMap:
         return _parse_typescript(fpath, text)
     if lang == "dart":
         return _parse_dart(fpath, text)
+    if lang == "rust":
+        return _parse_rust(fpath, text)
     return FileMap(path=fpath, language=lang)
 
 
@@ -908,6 +915,117 @@ def _parse_dart(rel_path: str, text: str) -> FileMap:
             signature=f"{name}({params})",
             visibility="public",
         ))
+
+    return fm
+
+
+# --------------------------------------------------------------------------
+# Parser Rust
+# --------------------------------------------------------------------------
+
+# struct/enum/trait Name  (pub o sin modificador)
+_RX_RUST_TYPE = re.compile(
+    r'^[ \t]*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait|union)\s+(\w+)',
+    re.MULTILINE,
+)
+
+# impl Name  o  impl Trait for Name
+_RX_RUST_IMPL = re.compile(
+    r'^[ \t]*impl(?:<[^>]*>)?\s+(?:\w+\s+for\s+)?(\w+)',
+    re.MULTILINE,
+)
+
+# pub fn name(params) o pub async fn name(params)
+_RX_RUST_FN = re.compile(
+    r'^[ \t]*(?P<pub>pub(?:\([^)]*\))?\s+)?'
+    r'(?:async\s+)?fn\s+'
+    r'(?P<name>\w+)\s*'
+    r'(?:<[^>]*>\s*)?'
+    r'\((?P<params>[^)]*)\)',
+    re.MULTILINE,
+)
+
+# Anotaciones de ruta actix-web/rocket: #[get("/path")] #[post("/path")]
+_RX_RUST_ROUTE = re.compile(
+    r'#\[(?:actix_web::)?(get|post|put|delete|patch|head)\s*\(\s*"([^"]+)"\s*\)\]',
+    re.IGNORECASE,
+)
+
+# Parámetros Rust: self, &self, &mut self, name: Type, _: Type
+_RX_RUST_PARAM = re.compile(r'(?:mut\s+)?(\w+)\s*:\s*[\w&<>\[\];\s,]+')
+
+
+def _simplify_rust_params(params: str) -> str:
+    """'self, id: u32, dto: Json<CreateDto>' → 'self, id, dto'."""
+    if not params.strip():
+        return ""
+    parts = []
+    for p in params.split(","):
+        p = p.strip()
+        if not p:
+            continue
+        if p in ("self", "&self", "&mut self", "mut self"):
+            parts.append("self")
+        elif ":" in p:
+            name = p.split(":")[0].strip().lstrip("&").lstrip("mut").strip()
+            if name:
+                parts.append(name)
+        else:
+            parts.append(p.split()[0] if p.split() else p)
+    return ", ".join(parts)
+
+
+def _parse_rust(rel_path: str, text: str) -> FileMap:
+    fm = FileMap(path=rel_path, language="rust")
+    t = _strip_cpp_comments(text)   # Rust usa // y /* */
+
+    # Tipos (struct, enum, trait)
+    for m in _RX_RUST_TYPE.finditer(t):
+        name = m.group(1)
+        fm.symbols.append(Symbol(
+            kind="struct", name=name, signature=name,
+            visibility="public",
+            line=t[: m.start()].count("\n") + 1,
+        ))
+
+    # Funciones: buscar anotaciones de ruta justo antes del fn
+    lines = t.splitlines()
+    pending_route: tuple[str, str] | None = None   # (verb, path)
+
+    for i, line in enumerate(lines):
+        # Detectar anotación de ruta en esta línea
+        rm = _RX_RUST_ROUTE.search(line)
+        if rm:
+            pending_route = (rm.group(1).upper(), rm.group(2))
+            continue
+
+        # fn en esta línea
+        fm2 = _RX_RUST_FN.match(line)
+        if not fm2:
+            if pending_route and line.strip() and not line.strip().startswith("//"):
+                pending_route = None  # línea que no es fn consume la ruta pendiente
+            continue
+
+        name = fm2.group("name")
+        if name in ("new", "default", "fmt", "from", "into", "clone", "drop"):
+            pending_route = None
+            continue
+
+        is_pub = bool(fm2.group("pub"))
+        params = _simplify_rust_params(fm2.group("params") or "")
+        sig = f"{name}({params})"
+
+        sym = Symbol(
+            kind="function", name=name, signature=sig,
+            visibility="public" if is_pub else "private",
+            line=i + 1,
+        )
+        if pending_route:
+            sym.http_method, sym.http_path = pending_route
+            sym.visibility = "public"
+            pending_route = None
+
+        fm.symbols.append(sym)
 
     return fm
 
