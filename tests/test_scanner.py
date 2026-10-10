@@ -64,3 +64,29 @@ def test_grep(tmp_path):
     sc = ProjectScanner(make_tree(tmp_path, HMDM), use_git=False)
     hits = sc.grep(r"<packaging>war", exts={".xml"})
     assert [(h.file, h.line) for h in hits] == [("server/pom.xml", 4)]
+
+
+def test_gitignored_manifest_injected(tmp_path):
+    """go.mod en .gitignore debe seguir siendo visible para los adaptadores."""
+    import subprocess
+    # Init git repo
+    subprocess.run(["git", "init", "-b", "main", str(tmp_path)],
+                   capture_output=True)
+    (tmp_path / ".gitignore").write_text("go.mod\ngo.sum\n")
+    (tmp_path / "go.mod").write_text("module myapp\n\ngo 1.21\n")
+    (tmp_path / "main.go").write_text("package main\n")
+    subprocess.run(["git", "-C", str(tmp_path), "add", ".gitignore", "main.go"],
+                   capture_output=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-m", "init",
+                    "--author", "Test <t@t.com>"],
+                   capture_output=True)
+    sc = ProjectScanner(str(tmp_path))
+    assert sc.listing_method == "git"
+    assert "go.mod" in sc.files
+
+
+def test_gitignored_manifest_not_injected_without_git(tmp_path):
+    """En modo walk (sin git) el scanner ya ve todos los archivos."""
+    (tmp_path / "go.mod").write_text("module myapp\n\ngo 1.21\n")
+    sc = ProjectScanner(str(tmp_path), use_git=False)
+    assert "go.mod" in sc.files

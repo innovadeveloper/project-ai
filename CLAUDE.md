@@ -208,8 +208,23 @@ Hecho y con tests (538 pasando):
   integrado en finalize §6 Navegación, context (búsqueda en schema-map), setup_agent (§5),
   cli subcomando `project-ai schema`. 45 tests.
 
-**961 tests. Stacks cubiertos: Maven/Spring, CMake/C++, Conan, Python, .NET, Gradle/Android, JS/TS, Flutter/Dart, Go, Rust, Make. SQL: PostgreSQL.**
-Siguiente: Fase G (evaluación) o validar en proyectos reales. Ver ROADMAP.
+- `project_ai/scanner.py` (fix) — `_inject_ignored_manifests()`: inyecta manifiestos clave
+  (go.mod, package.json, Cargo.toml, etc.) que existen en disco aunque estén en `.gitignore`.
+  Activado solo cuando `listing_method == "git"`. Fix validado contra `smartcard-go` real.
+- `project_ai/adapters/javascript.py` (fix) — `_SERVICE_DEPS` añade `mssql` (tedious /
+  tedious-connection-pool / mssql). `_parse_node_version()` extrae versión `typescript` de
+  dependencies y devDependencies como requisito BUILD. Bugs encontrados en `ws-servidor-tsir` real.
+
+- `project_ai/adapters/gradle.py` (fix) — `_RX_SOURCE_COMPAT` ahora reconoce el formato legacy
+  `JavaVersion.VERSION_1_8` (captura el `8`, no el `1`). Fix validado contra `app-gps-sib` real.
+- `project_ai/adapters/dotnet.py` (fix) — `OutputType=WinExe` → kind `windows-app` (antes `library`);
+  `TargetFramework=net8.0-windows` → aviso "solo compila en windows. No compila en macOS/Linux".
+  Fix validado contra `liblogicalaccess-samples-csharp` real.
+
+**976 tests. Stacks cubiertos: Maven/Spring, CMake/C++, Conan, Python, .NET, Gradle/Android, JS/TS, Flutter/Dart, Go, Rust, Make. SQL: PostgreSQL.**
+Validados en proyectos reales: netclient (C++), hmdm (Spring), smartcard-go (Go), ws-servidor-tsir (TS/Express),
+beex-payment-queue (Spring Boot), app-gps-sib (Android), liblogicalaccess-samples-csharp (.NET/WinForms).
+Siguiente: Fase G (evaluación) o validar más stacks. Ver ROADMAP.
 
 ## Cómo trabajar en este repo
 

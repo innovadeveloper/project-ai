@@ -76,6 +76,7 @@ _SERVICE_DEPS: list[tuple[str, re.Pattern]] = [
     ("redis",         re.compile(r'"(?:redis|ioredis)"\s*:')),
     ("mongodb",       re.compile(r'"(?:mongoose|mongodb)"\s*:')),
     ("mysql",         re.compile(r'"(?:mysql2|mysql)"\s*:')),
+    ("mssql",         re.compile(r'"(?:tedious|mssql|tedious-connection-pool)"\s*:')),
     ("kafka",         re.compile(r'"(?:kafkajs|kafka-node)"\s*:')),
     ("rabbitmq",      re.compile(r'"(?:amqplib|amqp)"\s*:')),
     ("elasticsearch", re.compile(r'"(?:@elastic/elasticsearch|elasticsearch)"\s*:')),
@@ -234,6 +235,18 @@ class JavascriptAdapter(Adapter):
         if engine:
             req(info, "node", engine, P.BUILD, "package.json", None,
                 f'"node": "{engine}"', adapter=NAME)
+
+        # TypeScript version de dependencies o devDependencies
+        all_deps: dict = {}
+        all_deps.update(pkg_data.get("dependencies", {}))
+        all_deps.update(pkg_data.get("devDependencies", {}))
+        ts_ver_raw = all_deps.get("typescript", "")
+        if ts_ver_raw:
+            m = re.match(r'[\^~]?(\d[\d.]*)', ts_ver_raw)
+            if m:
+                req(info, "typescript", m.group(1), P.BUILD,
+                    "package.json", None,
+                    f'"typescript": "{ts_ver_raw}"', adapter=NAME)
 
     # ----------------------------------------------------------------
     # Gestor de paquetes

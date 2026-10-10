@@ -1285,6 +1285,46 @@ public class Main {
 """,
 }
 
+# Android antiguo con sourceCompatibility JavaVersion.VERSION_1_8 (legacy 1.x style)
+GRADLE_JAVA_LEGACY_COMPAT = {
+    "settings.gradle": "rootProject.name = 'legacy-app'\ninclude ':app'\n",
+    "app/build.gradle": """\
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    compileSdkVersion 28
+    defaultConfig {
+        applicationId "com.example.legacy"
+        minSdkVersion 19
+        targetSdkVersion 22
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+""",
+    "gradle/wrapper/gradle-wrapper.properties": """\
+distributionUrl=https\\://services.gradle.org/distributions/gradle-6.1.1-bin.zip
+""",
+}
+
+# Windows Forms .NET (net8.0-windows, WinExe)
+DOTNET_WINDOWS_FORMS = {
+    "WinApp.csproj": """\
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+</Project>
+""",
+    "Form1.cs": "public class Form1 : Form { }\n",
+}
+
 # Aplicación de consola simple (sin web, sin tests)
 DOTNET_CONSOLE = {
     "ConsoleApp.csproj": """\

@@ -217,6 +217,16 @@ def _process_csproj(path: Path, rel: str, info: ProjectInfo,
                             rel, None, pkg_name, adapter=NAME)
                 break
 
+    # Advertir si el framework es específico de plataforma
+    if target_fw:
+        m_plat = re.match(r'net[\d.]+-(\w+)', target_fw, re.IGNORECASE)
+        if m_plat:
+            platform = m_plat.group(1).lower()
+            note = f"{rel}: TargetFramework={target_fw} — solo compila en {platform}."
+            if platform == "windows":
+                note += " No compila en macOS/Linux."
+            info.warnings.append(note)
+
     # Kind del módulo
     if is_test:
         kind = "test"
@@ -224,6 +234,8 @@ def _process_csproj(path: Path, rel: str, info: ProjectInfo,
         kind = "web-app"
     elif output_type == "exe":
         kind = "console"
+    elif output_type == "winexe":
+        kind = "windows-app"
     else:
         kind = "library"
 

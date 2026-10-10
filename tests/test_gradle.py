@@ -5,7 +5,7 @@ from pathlib import Path
 
 from conftest import (
     ANDROID_APP, ANDROID_LIBRARY_ID_STYLE, ANDROID_MULTI, GRADLE_JAVA,
-    KOTLIN_SPRING, make_tree,
+    GRADLE_JAVA_LEGACY_COMPAT, KOTLIN_SPRING, make_tree,
 )
 from project_ai.adapters import run_adapters
 from project_ai.model import ProjectInfo, SourcePriority
@@ -163,6 +163,17 @@ class TestJDK:
         info = _info(tmp_path, GRADLE_JAVA)
         assert "jdk" in info.requirements
         assert info.requirements["jdk"].value == "17"
+
+    def test_jdk_from_legacy_version_1_8(self, tmp_path):
+        """sourceCompatibility JavaVersion.VERSION_1_8 → jdk='8', no '1'."""
+        info = _info(tmp_path, GRADLE_JAVA_LEGACY_COMPAT)
+        assert "jdk" in info.requirements
+        assert info.requirements["jdk"].value == "8"
+
+    def test_jdk_legacy_not_version_1(self, tmp_path):
+        """VERSION_1_8 no debe capturar solo el '1' del prefijo."""
+        info = _info(tmp_path, GRADLE_JAVA_LEGACY_COMPAT)
+        assert info.requirements["jdk"].value != "1"
 
 
 # --------------------------------------------------------------------------

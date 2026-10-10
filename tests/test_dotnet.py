@@ -5,7 +5,7 @@ from pathlib import Path
 
 from conftest import (
     DOTNET_CONSOLE, DOTNET_MINIMAL_API,
-    DOTNET_MVC_CONTROLLERS, DOTNET_SOLUTION, make_tree,
+    DOTNET_MVC_CONTROLLERS, DOTNET_SOLUTION, DOTNET_WINDOWS_FORMS, make_tree,
 )
 from project_ai.adapters import run_adapters
 from project_ai.model import ProjectInfo, SourcePriority
@@ -100,6 +100,27 @@ class TestModuleKind:
     def test_solution_has_multiple_modules(self, tmp_path):
         info = _info(tmp_path, DOTNET_SOLUTION)
         assert len(info.modules) >= 2
+
+    def test_winexe_is_windows_app(self, tmp_path):
+        """OutputType=WinExe → kind 'windows-app', no 'library'."""
+        info = _info(tmp_path, DOTNET_WINDOWS_FORMS)
+        kinds = [m.kind for m in info.modules]
+        assert "windows-app" in kinds
+
+    def test_winexe_not_library(self, tmp_path):
+        info = _info(tmp_path, DOTNET_WINDOWS_FORMS)
+        kinds = [m.kind for m in info.modules]
+        assert "library" not in kinds
+
+    def test_windows_platform_warning(self, tmp_path):
+        """net8.0-windows → warning indicando que no compila en macOS/Linux."""
+        info = _info(tmp_path, DOTNET_WINDOWS_FORMS)
+        assert any("windows" in w.lower() for w in info.warnings)
+
+    def test_no_platform_warning_for_plain_net(self, tmp_path):
+        """net8.0 sin plataforma no debe generar warning."""
+        info = _info(tmp_path, DOTNET_CONSOLE)
+        assert not any("solo compila" in w for w in info.warnings)
 
 
 # --------------------------------------------------------------------------

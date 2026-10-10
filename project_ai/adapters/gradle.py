@@ -73,9 +73,9 @@ _RX_TOOLCHAIN_JDK = re.compile(
 )
 # jvmToolchain(N) shorthand
 _RX_JVM_TOOLCHAIN = re.compile(r'jvmToolchain\s*\(\s*(\d+)')
-# sourceCompatibility = JavaVersion.VERSION_17 / "17" / 17
+# sourceCompatibility = JavaVersion.VERSION_17 / VERSION_1_8 (legacy) / "17" / 17
 _RX_SOURCE_COMPAT = re.compile(
-    r'sourceCompatibility\s*[=\s]+(?:JavaVersion\.VERSION_(\d+)|"(\d+)"|\'(\d+)\'|(\d+))'
+    r'sourceCompatibility\s*[=\s]+(?:JavaVersion\.VERSION_1_(\d+)|JavaVersion\.VERSION_(\d+)|"(\d+)"|\'(\d+)\'|(\d+))'
 )
 # kotlinOptions { jvmTarget = "17" }
 _RX_JVM_TARGET = re.compile(r'''jvmTarget\s*=\s*["'](\d+)["']''')

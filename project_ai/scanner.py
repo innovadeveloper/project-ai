@@ -164,6 +164,49 @@ class GrepHit:
         return f"{self.file}:{self.line}: {self.text}"
 
 
+# Manifiestos que los adaptadores necesitan aunque estén en .gitignore.
+# Solo se añaden si existen en el directorio raíz del proyecto.
+_MANIFEST_NAMES = frozenset({
+    "go.mod", "go.sum",
+    "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb",
+    "pyproject.toml", "requirements.txt", "setup.py", "setup.cfg",
+    "Cargo.toml", "Cargo.lock",
+    "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
+    "CMakeLists.txt", "conanfile.py", "conanfile.txt",
+    "pubspec.yaml",
+    "Makefile",
+    "*.csproj", "*.sln",
+    "global.json",
+})
+
+
+def _inject_ignored_manifests(root: Path, files: list[str]) -> None:
+    """Añade manifiestos clave que existen en disco pero no están en `files`.
+
+    Solo inyecta archivos en la raíz del proyecto (depth 0) o en subdirectorios
+    inmediatos (depth 1) para no escanear el árbol completo.
+    """
+    existing = set(files)
+    # Exactos en la raíz
+    exact = {
+        "go.mod", "go.sum",
+        "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb",
+        "pyproject.toml", "requirements.txt", "setup.py", "setup.cfg",
+        "Cargo.toml", "Cargo.lock",
+        "pom.xml", "build.gradle", "build.gradle.kts",
+        "settings.gradle", "settings.gradle.kts",
+        "CMakeLists.txt", "conanfile.py", "conanfile.txt",
+        "pubspec.yaml", "Makefile", "global.json",
+    }
+    for name in exact:
+        if name not in existing and (root / name).is_file():
+            files.append(name)
+    # .csproj y .sln en la raíz (extensión variable)
+    for p in root.iterdir():
+        if p.suffix in (".csproj", ".sln") and p.name not in existing:
+            files.append(p.name)
+
+
 class ProjectScanner:
     """Índice en memoria de los archivos fuente de un proyecto."""
 
@@ -190,6 +233,12 @@ class ProjectScanner:
                                        if f.endswith("compile_commands.json")),
         }
         self.files, self.generated_dirs = _filter_files(raw)
+
+        # Manifiestos clave que pueden estar en .gitignore pero deben ser
+        # visibles para los adaptadores (go.mod, package-lock.json, etc.)
+        if self.listing_method == "git":
+            _inject_ignored_manifests(self.root, self.files)
+
         self.files.sort()
 
         self._by_name: dict[str, list[str]] = {}

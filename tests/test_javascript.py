@@ -188,6 +188,23 @@ class TestServices:
         kinds = [s.kind for s in info.services]
         assert "redis" in kinds
 
+    def test_mssql_from_tedious(self, tmp_path):
+        """tedious (SQL Server TDS) → servicio mssql."""
+        pkg = {
+            "package.json": '{"name":"api","dependencies":{"tedious":"^2.7.1","express":"^4.0.0"}}'
+        }
+        info = _info(tmp_path, pkg)
+        kinds = [s.kind for s in info.services]
+        assert "mssql" in kinds
+
+    def test_mssql_from_mssql_package(self, tmp_path):
+        pkg = {
+            "package.json": '{"name":"api","dependencies":{"mssql":"^9.0.0","express":"^4.0.0"}}'
+        }
+        info = _info(tmp_path, pkg)
+        kinds = [s.kind for s in info.services]
+        assert "mssql" in kinds
+
     def test_no_services_for_angular(self, tmp_path):
         info = _info(tmp_path, ANGULAR_APP)
         assert len(info.services) == 0
@@ -195,6 +212,33 @@ class TestServices:
     def test_no_services_for_react(self, tmp_path):
         info = _info(tmp_path, REACT_VITE)
         assert len(info.services) == 0
+
+
+class TestTypeScriptVersion:
+    def test_ts_version_from_dependencies(self, tmp_path):
+        """typescript en dependencies → req typescript BUILD."""
+        pkg = {
+            "package.json": '{"name":"api","dependencies":{"typescript":"^2.9.2","express":"^4.0.0"}}'
+        }
+        info = _info(tmp_path, pkg)
+        assert "typescript" in info.requirements
+        assert info.requirements["typescript"].value == "2.9.2"
+
+    def test_ts_version_from_devdependencies(self, tmp_path):
+        """typescript en devDependencies también se captura."""
+        pkg = {
+            "package.json": '{"name":"api","dependencies":{"express":"^4.0.0"},"devDependencies":{"typescript":"^5.0.4"}}'
+        }
+        info = _info(tmp_path, pkg)
+        assert "typescript" in info.requirements
+        assert info.requirements["typescript"].value == "5.0.4"
+
+    def test_no_ts_without_dep(self, tmp_path):
+        pkg = {
+            "package.json": '{"name":"api","dependencies":{"express":"^4.0.0"}}'
+        }
+        info = _info(tmp_path, pkg)
+        assert "typescript" not in info.requirements
 
 
 # --------------------------------------------------------------------------
