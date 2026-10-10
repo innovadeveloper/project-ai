@@ -200,7 +200,15 @@ Hecho y con tests (538 pasando):
 - `project_ai/cli.py` — subcomando `project-ai notes <ruta>`: crea plantilla si no existe, muestra contenido
   si está relleno, avisa si está vacío.
 
-**916 tests. Stacks cubiertos: Maven/Spring, CMake/C++, Conan, Python, .NET, Gradle/Android, JS/TS, Flutter/Dart, Go, Rust, Make.**
+- `project_ai/schema.py` — `schema(path, *, sql_path, document, model, write)` → `SchemaResult`;
+  auto-detecta dump SQL en ubicaciones comunes; `_split_statements()` (dollar-quoting, comentarios);
+  `_extract_objects()` → tablas/vistas/funciones/procedimientos con ALTER/INDEX adjuntos y
+  particiones marcadas; `build_schema_map()` → `.project-ai/schema-map.md` compacto;
+  `--document`: llama a Ollama vía `urllib` por objeto, reanudable (salta .md existentes);
+  integrado en finalize §6 Navegación, context (búsqueda en schema-map), setup_agent (§5),
+  cli subcomando `project-ai schema`. 45 tests.
+
+**961 tests. Stacks cubiertos: Maven/Spring, CMake/C++, Conan, Python, .NET, Gradle/Android, JS/TS, Flutter/Dart, Go, Rust, Make. SQL: PostgreSQL.**
 Siguiente: Fase G (evaluación) o validar en proyectos reales. Ver ROADMAP.
 
 ## Cómo trabajar en este repo

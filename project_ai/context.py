@@ -61,6 +61,11 @@ def context(
     if ep_lines:
         sections.append("## Endpoints relevantes\n\n" + "\n".join(ep_lines))
 
+    # --- 4b. Schema SQL relevante --------------------------------------------
+    schema_lines = _search_schema_map(root, query)
+    if schema_lines:
+        sections.append("## Schema SQL relevante\n\n" + "\n".join(schema_lines))
+
     # --- 5. Ensamblar dentro del budget -------------------------------------
     result = _assemble(sections, budget)
 
@@ -118,6 +123,21 @@ def _load_summary(root: Path) -> str:
 def _load_repo_map(root: Path) -> str:
     f = root / OUTPUT_DIR / "repo-map.md"
     return f.read_text(encoding="utf-8") if f.exists() else ""
+
+
+def _search_schema_map(root: Path, query: str) -> list[str]:
+    """Devuelve líneas de schema-map.md relevantes para `query`."""
+    f = root / OUTPUT_DIR / "schema-map.md"
+    if not f.exists():
+        return []
+    toks = _tokens(query)
+    if not toks:
+        return []
+    matched: list[str] = []
+    for line in f.read_text(encoding="utf-8").splitlines():
+        if any(t in line.lower() for t in toks):
+            matched.append(line)
+    return matched[:20]
 
 
 # --------------------------------------------------------------------------

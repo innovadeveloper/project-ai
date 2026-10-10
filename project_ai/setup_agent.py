@@ -206,6 +206,24 @@ def _generate(root: Path, stacks: list[str], config) -> str:
         "",
     ]
 
+    # ---- 5. Schema SQL (solo si existe) ------------------------------------
+    if (root / OUTPUT_DIR / "schema-map.md").exists():
+        lines += [
+            "## 5. Schema SQL",
+            "",
+            "El proyecto tiene un esquema SQL documentado en `.project-ai/schema-map.md`.",
+            "Para documentar cada tabla y función con Ollama:",
+            "",
+            "```bash",
+            f"project-ai schema {root} --document",
+            "```",
+            "",
+            "Los documentos se guardan en `.project-ai/schema/tablas/` y"
+            " `.project-ai/schema/funciones/`.",
+            "Inclúyelos como contexto adicional en tu chat con OpenCode.",
+            "",
+        ]
+
     return "\n".join(lines)
 
 

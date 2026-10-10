@@ -14,6 +14,8 @@ Requisito previo: Python ≥ 3.11 y [uv](https://docs.astral.sh/uv/).
 git clone <este-repo>
 cd project-ai
 uv tool install .
+# uv tool install --editable .
+
 # Verifica:
 project-ai --help
 ```

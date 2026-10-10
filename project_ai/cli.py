@@ -130,6 +130,24 @@ def _build_parser() -> argparse.ArgumentParser:
     p_notes.add_argument("path", nargs="?", default=".",
                          help="Ruta al proyecto (por defecto: directorio actual)")
 
+    # ---- schema -------------------------------------------------------------
+    p_schema = sub.add_parser(
+        "schema",
+        help="Extrae y documenta el esquema SQL del proyecto (.project-ai/schema-map.md)",
+    )
+    p_schema.add_argument("path", nargs="?", default=".",
+                          help="Ruta al proyecto (por defecto: directorio actual)")
+    p_schema.add_argument("--sql", metavar="RUTA",
+                          help="Ruta explícita al dump .sql (si no, se auto-detecta)")
+    p_schema.add_argument("--document", action="store_true",
+                          help="Documenta cada objeto con Ollama (requiere servidor activo)")
+    p_schema.add_argument("--model", metavar="MODELO",
+                          help="Modelo Ollama para documentar (por defecto: qwen2.5-coder:7b)")
+    p_schema.add_argument("--force", action="store_true",
+                          help="Re-documenta aunque el .md ya exista")
+    p_schema.add_argument("--no-write", action="store_true",
+                          help="No escribir .project-ai/schema-map.md ni docs de objetos")
+
     return ap
 
 
@@ -228,6 +246,35 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"Archivo existe pero solo contiene la plantilla vacía: {p}")
             print("Edítalo con el contexto de dominio del proyecto.")
+        return 0
+
+    if a.cmd == "schema":
+        from .schema import schema as _schema
+        write_sc = not getattr(a, "no_write", False)
+        try:
+            result = _schema(
+                a.path,
+                sql_path=getattr(a, "sql", None),
+                document=getattr(a, "document", False),
+                model=getattr(a, "model", None),
+                force=getattr(a, "force", False),
+                write=write_sc,
+            )
+        except FileNotFoundError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+        print(f"Tablas/vistas:  {result.tables}")
+        print(f"Funciones:      {result.functions}")
+        if result.documented:
+            print(f"Documentados:   {result.documented}")
+        if result.skipped:
+            print(f"Omitidos (ya existían): {result.skipped}")
+        if result.errors:
+            print(f"Errores: {', '.join(result.errors[:5])}", file=sys.stderr)
+        if write_sc:
+            from pathlib import Path as _Path
+            map_path = _Path(a.path) / ".project-ai" / "schema-map.md"
+            print(f"\n→ Escrito en {map_path}")
         return 0
 
     write = (a.cmd == "recon") and not getattr(a, "no_write", False)

@@ -337,16 +337,18 @@ def _generate_agents_md(
         lines.append("")
 
     # --- 6. Navegación ------------------------------------------------------
-    lines += [
-        "## 6. Navegación",
-        "",
+    nav_lines = [
         "- `.project-ai/repo-map.md` — mapa compacto de símbolos (clases, firmas)",
         "- `.project-ai/project.json` — datos completos del proyecto con evidencia",
         "- `.project-ai/env-report.md` — estado del entorno en esta máquina",
         "- `.project-ai/RUNBOOK.md` — pasos para levantar el proyecto",
         "- `.project-ai/journal.md` — historial de diagnósticos (triage)",
-        "",
     ]
+    if (root / OUTPUT_DIR / "schema-map.md").exists():
+        nav_lines.append(
+            "- `.project-ai/schema-map.md` — esquema SQL (tablas, vistas, funciones)"
+        )
+    lines += ["## 6. Navegación", ""] + nav_lines + [""]
 
     text = "\n".join(lines)
     return text
