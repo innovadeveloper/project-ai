@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .model import ProjectInfo, Status
+from .notes import ensure_notes_template, load_notes
 
 
 OUTPUT_DIR   = ".project-ai"
@@ -121,10 +122,16 @@ def finalize(
     # 3. Leer trampas del journal
     traps = _parse_journal_traps(root)
 
-    # 4. Generar AGENTS.md
-    agents_md = _generate_agents_md(root, info, verified_kinds, now, traps)
+    # 4. Notas de dominio del usuario
+    domain_notes = load_notes(root)
+
+    # 5. Generar AGENTS.md
+    agents_md = _generate_agents_md(root, info, verified_kinds, now, traps,
+                                    domain_notes=domain_notes)
 
     if write:
+        # Crear plantilla de notes.md si no existe aún
+        ensure_notes_template(root)
         # Sobrescribir project.json con los estados verificados
         import json
         out_json = root / OUTPUT_DIR / "project.json"
@@ -204,6 +211,8 @@ def _generate_agents_md(
     verified: list[str],
     generated_at: str,
     traps: list[str],
+    *,
+    domain_notes: str | None = None,
 ) -> str:
     lines: list[str] = []
 
@@ -215,6 +224,15 @@ def _generate_agents_md(
         "> Lee este archivo antes de preguntar o editar código.",
         "",
     ]
+
+    # --- §0. Contexto del proyecto (notas del usuario) ----------------------
+    if domain_notes:
+        lines += [
+            "## 0. Contexto del proyecto",
+            "",
+            domain_notes.strip(),
+            "",
+        ]
 
     # --- 1. Proyecto --------------------------------------------------------
     stacks   = ", ".join(info.stack_names()) or "desconocido"

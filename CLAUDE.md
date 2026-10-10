@@ -190,7 +190,17 @@ Hecho y con tests (538 pasando):
   sobre HMDM (Maven/Spring), NETCLIENT_FULL (CMake/Conan) y SPRING_WITH_CONFIG; consistencia entre módulos
   (comandos recon ⊂ runbook steps; stacks en AGENTS.md).
 
-**891 tests. Stacks cubiertos: Maven/Spring, CMake/C++, Conan, Python, .NET, Gradle/Android, JS/TS, Flutter/Dart, Go, Rust, Make.**
+- `project_ai/notes.py` — `ensure_notes_template(root)`: crea `.project-ai/notes.md` con plantilla de 4 secciones
+  (¿qué hace?, entidades clave, reglas de negocio, notas para el agente) si no existe. `load_notes(root)`:
+  devuelve el contenido solo si hay texto real (filtra encabezados, blockquotes `>` y comentarios HTML
+  multilinea `<!-- ... -->`); None si solo tiene la plantilla vacía.
+- `project_ai/finalize.py` (mejora) — genera plantilla notes.md al escribir; incluye §0 "Contexto del proyecto"
+  en AGENTS.md cuando hay contenido real en notes.md. El §0 aparece antes de §1 "Proyecto".
+- `project_ai/context.py` (mejora) — incluye notas de dominio antes del resumen del proyecto cuando existen.
+- `project_ai/cli.py` — subcomando `project-ai notes <ruta>`: crea plantilla si no existe, muestra contenido
+  si está relleno, avisa si está vacío.
+
+**916 tests. Stacks cubiertos: Maven/Spring, CMake/C++, Conan, Python, .NET, Gradle/Android, JS/TS, Flutter/Dart, Go, Rust, Make.**
 Siguiente: Fase G (evaluación) o validar en proyectos reales. Ver ROADMAP.
 
 ## Cómo trabajar en este repo

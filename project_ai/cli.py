@@ -122,6 +122,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_sa.add_argument("--no-write", action="store_true",
                       help="No escribir .project-ai/setup-agent.md")
 
+    # ---- notes --------------------------------------------------------------
+    p_notes = sub.add_parser(
+        "notes",
+        help="Muestra o crea las notas de dominio del proyecto (.project-ai/notes.md)",
+    )
+    p_notes.add_argument("path", nargs="?", default=".",
+                         help="Ruta al proyecto (por defecto: directorio actual)")
+
     return ap
 
 
@@ -204,6 +212,22 @@ def main(argv: list[str] | None = None) -> int:
         print(result)
         if write_sa:
             print(f"\n→ Escrito en {a.path}/.project-ai/setup-agent.md")
+        return 0
+
+    if a.cmd == "notes":
+        from .notes import ensure_notes_template, load_notes, notes_path
+        p = notes_path(a.path)
+        created = ensure_notes_template(a.path)
+        content = load_notes(a.path)
+        if created:
+            print(f"Plantilla creada en: {p}")
+            print("Edítala con el contexto de dominio del proyecto.")
+        elif content:
+            print(f"# {p}\n")
+            print(content)
+        else:
+            print(f"Archivo existe pero solo contiene la plantilla vacía: {p}")
+            print("Edítalo con el contexto de dominio del proyecto.")
         return 0
 
     write = (a.cmd == "recon") and not getattr(a, "no_write", False)

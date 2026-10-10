@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 
 from .model import ProjectInfo
+from .notes import load_notes
 
 OUTPUT_DIR  = ".project-ai"
 CHARS_PER_TOKEN = 4   # conservador: 1 token ≈ 4 chars
@@ -40,6 +41,11 @@ def context(
 
     # --- 1. Cabecera con la pregunta ----------------------------------------
     sections.append(f"## Pregunta\n\n{query}")
+
+    # --- 1b. Notas de dominio del usuario ------------------------------------
+    notes = load_notes(root)
+    if notes:
+        sections.append(f"## Contexto del proyecto\n\n{notes.strip()}")
 
     # --- 2. Resumen del proyecto (fuente: AGENTS.md o project.json) ----------
     summary = _load_summary(root)
