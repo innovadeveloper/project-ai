@@ -2820,3 +2820,222 @@ all:
 .PHONY: all
 """,
 }
+
+# --------------------------------------------------------------------------
+# Unity
+# --------------------------------------------------------------------------
+
+UNITY_URP = {
+    "ProjectSettings/ProjectVersion.txt": (
+        "m_EditorVersion: 2022.3.15f1\n"
+        "m_EditorVersionWithRevision: 2022.3.15f1 (bdfd5f8139e0)\n"
+    ),
+    "Packages/manifest.json": """\
+{
+  "dependencies": {
+    "com.unity.render-pipelines.universal": "14.0.9",
+    "com.google.firebase.app": "10.3.0",
+    "com.unity.2d.sprite": "1.0.0",
+    "com.unity.textmeshpro": "3.0.6"
+  }
+}
+""",
+    "Assets/Scripts/PlayerController.cs": (
+        "using UnityEngine;\n"
+        "public class PlayerController : MonoBehaviour { }\n"
+    ),
+    "Assets/Scenes/Main.unity": "# Unity scene\n",
+    "Assets/Scripts/PlayerController.cs.meta": "fileFormatVersion: 2\n",
+}
+
+UNITY_HDRP = {
+    "ProjectSettings/ProjectVersion.txt": "m_EditorVersion: 2023.1.0f1\n",
+    "Packages/manifest.json": """\
+{
+  "dependencies": {
+    "com.unity.render-pipelines.high-definition": "15.0.6",
+    "com.unity.services.authentication": "2.7.2"
+  }
+}
+""",
+    "Assets/Scripts/GameManager.cs": "using UnityEngine;\npublic class GameManager : MonoBehaviour { }\n",
+}
+
+UNITY_BUILTIN = {
+    "ProjectSettings/ProjectVersion.txt": "m_EditorVersion: 2021.3.30f1\n",
+    "Packages/manifest.json": '{"dependencies":{"com.unity.2d.sprite":"1.0.0"}}',
+    "Assets/Scripts/Main.cs": "using UnityEngine;\n",
+}
+
+# --------------------------------------------------------------------------
+# PlatformIO
+# --------------------------------------------------------------------------
+
+PLATFORMIO_ARDUINO = {
+    "platformio.ini": """\
+[env:uno]
+platform = atmelavr
+board = uno
+framework = arduino
+lib_deps =
+    arduino-libraries/Ethernet@^2.0.0
+    Wire
+""",
+    "src/main.cpp": "#include <Arduino.h>\nvoid setup() {}\nvoid loop() {}\n",
+    "include/main.h": "#pragma once\n",
+}
+
+PLATFORMIO_ESP32 = {
+    "platformio.ini": """\
+[platformio]
+default_envs = esp32dev
+
+[env:esp32dev]
+platform = espressif32
+board = esp32dev
+framework = arduino
+monitor_speed = 115200
+lib_deps =
+    bblanchon/ArduinoJson@^7.0.0
+    knolleary/pubsubclient@^2.8.0
+""",
+    "src/main.cpp": "#include <Arduino.h>\nvoid setup() {}\nvoid loop() {}\n",
+}
+
+PLATFORMIO_MULTI_ENV = {
+    "platformio.ini": """\
+[env:esp32dev]
+platform = espressif32
+board = esp32dev
+framework = arduino
+
+[env:esp32s3-idf]
+platform = espressif32
+board = esp32s3dev
+framework = espidf
+""",
+    "src/main.cpp": "#include <Arduino.h>\nvoid setup() {}\nvoid loop() {}\n",
+}
+
+# Flutter monorepo (pubspec.yaml en subdirectorio, no en raíz)
+FLUTTER_MONOREPO = {
+    "beex_mobile/pubspec.yaml": """\
+name: beex_mobile
+description: Flutter monorepo app
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.16.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: ^2.24.2
+  mqtt_client: ^10.0.0
+
+flutter:
+  uses-material-design: true
+""",
+    "beex_mobile/lib/main.dart": "import 'package:flutter/material.dart';\nvoid main() => runApp(const MyApp());\n",
+    "beex_mobile/android/build.gradle": "// Android build\n",
+    "beex_mobile/android/gradle/wrapper/gradle-wrapper.properties": "distributionUrl=https://services.gradle.org/distributions/gradle-8.0-bin.zip\n",
+    "beex_mobile/ios/Runner.xcodeproj/project.pbxproj": "// Xcode\n",
+    ".vscode/launch.json": '{"version":"0.2.0","configurations":[]}\n',
+}
+
+# Python con [tool.uv] pero sin uv.lock (índice privado Artifactory)
+PYTHON_TOOL_UV_NO_LOCK = {
+    "pyproject.toml": """\
+[project]
+name = "my_service"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["requests>=2.34.2"]
+
+[project.scripts]
+my-run = "my_service.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+index-url = "https://artifactory.example.com/repository/pypi-hosted/simple/"
+extra-index-url = ["https://pypi.org/simple/"]
+""",
+    "my_service/app.py": "def main(): pass\n",
+}
+
+# Python uv workspace monorepo (apps/ + libs/)
+PYTHON_UV_WORKSPACE = {
+    "pyproject.toml": """\
+[project]
+name = "myworkspace"
+version = "0.1.0"
+requires-python = ">=3.12,<3.14"
+dependencies = ["typer>=0.26.7"]
+
+[tool.uv.workspace]
+members = [
+    "apps/my-cli",
+    "libs/my-shared-lib",
+]
+""",
+    "uv.lock": "# uv lock\n",
+    ".python-version": "3.12\n",
+    "apps/my-cli/pyproject.toml": """\
+[project]
+name = "my-cli"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["my-shared-lib==0.1.0"]
+
+[project.scripts]
+my-cli = "my_cli.main:main"
+
+[tool.uv.sources]
+my-shared-lib = { workspace = true }
+""",
+    "apps/my-cli/src/my_cli/main.py": """\
+def main():
+    print('hello')
+
+if __name__ == '__main__':
+    main()
+""",
+    "libs/my-shared-lib/pyproject.toml": """\
+[project]
+name = "my-shared-lib"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+""",
+    "libs/my-shared-lib/src/my_shared_lib/__init__.py": "# shared lib\n",
+}
+
+# Python monorepo con run command apuntando a archivo basura (bug: delete_after/)
+PYTHON_JUNK_MAINSCRIPT = {
+    "pyproject.toml": """\
+[project]
+name = "myapp"
+version = "0.1.0"
+requires-python = ">=3.11"
+""",
+    "uv.lock": "# uv lock\n",
+    # archivo basura profundo con __main__ (debe ignorarse)
+    "src/myapp/delete_after/backtest.py": """\
+import sys
+
+if __name__ == '__main__':
+    print('junk')
+""",
+    # archivo canónico con __main__ (debe elegirse)
+    "src/myapp/main.py": """\
+def run(): pass
+
+if __name__ == '__main__':
+    run()
+""",
+}

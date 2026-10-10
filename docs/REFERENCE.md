@@ -40,6 +40,8 @@ project-ai finalize <ruta>
 | Go | go.mod, framework (Gin/Echo/Fiber), endpoints | `--only hints go` |
 | Rust | Cargo.toml, workspaces, actix-web / axum / rocket | `--only hints rust` |
 | Make | Makefile (sin CMakeLists), CXX, targets, bear hint | `--only hints make` |
+| Unity | ProjectVersion.txt, pipeline URP/HDRP/Built-in, Firebase/UGS | `--only hints unity` |
+| PlatformIO | platformio.ini, platform/board/framework, lib_deps, monitor | `--only hints platformio` |
 
 Añade `--debug` para ver qué detecta cada adaptador. `--json` vuelca todo con evidencias.
 
@@ -111,6 +113,8 @@ Si no existe el archivo, N1 apunta a `localhost:11434` con `llama3.2:3b` y N2 us
 | SQL schema docs | — | `qwen2.5-coder:7b` | solo `--document`; 7b suficiente |
 | JS / TS / Flutter | `llama3.2:3b` | `qwen2.5-coder:7b` | ecosistemas grandes → 7b |
 | Android / Gradle | `llama3.2:3b` | `qwen2.5-coder:14b` | AGP + NDK → N2 |
+| Unity C# | `llama3.2:3b` | `qwen2.5-coder:14b` | MonoBehaviour + engine API → N2 |
+| PlatformIO / embebido | `llama3.2:3b` | `qwen2.5-coder:7b` | C/C++ simples; 7b suficiente |
 
 Instala: `ollama pull llama3.2:3b` · `ollama pull qwen2.5-coder:7b` · `ollama pull qwen2.5-coder:14b`
 
@@ -231,5 +235,31 @@ ollama pull llama3.2:3b
 ollama pull qwen2.5-coder:7b
 ollama pull qwen2.5-coder:14b
 ```
+
+## ⑨ Cobertura de adaptadores
+
+| Adaptador | Tests unitarios | Validado en proyecto real | Proyecto / notas |
+| --- | --- | --- | --- |
+| `maven` | ✅ | ✅ | `hmdm-server-source-code-service` (WAR/Tomcat), `beex-payment-queue-publisher-api` (Spring Boot 3) |
+| `cmake` | ✅ | ✅ | `netclient` (CMake + Conan, C++17) |
+| `conan` | ✅ | ✅ | `netclient` (Conan 2, cmake_layout) |
+| `python` | ✅ | ✅ | `fmc-server-webapi` (uv + [tool.uv] sin lockfile); `py-libraries` (uv workspace monorepo, 3 miembros) |
+| `dotnet` | ✅ | ✅ | `liblogicalaccess-samples-csharp` (net8.0-windows, WinForms) |
+| `gradle` | ✅ | ✅ | `app-gps-sib` (Android Gradle 6.1.1, 7 módulos, compileSdk 28) |
+| `javascript` | ✅ | ✅ | `ws-servidor-tsir` (Express + tedious/MSSQL + TypeScript) |
+| `flutter` | ✅ | ✅ | `beex.mobile.app` (monorepo, pubspec.yaml en subdir, 5 plataformas) |
+| `go` | ✅ | ✅ | `smartcard-go` (Go 1.26, go.mod en .gitignore → fix scanner) |
+| `rust` | ✅ | — | fixtures actix-web/axum/rocket/workspace |
+| `make` | ✅ | — | fixtures Makefile puro, C/C++ |
+| `unity` | ✅ | ✅ | `Adventure2DProject` (Unity 6000.2.0f1, URP, aviso .csproj auto-generados) |
+| `platformio` | ✅ | ✅ | `audio-tx-esp32-poc` (espressif32 @6.5.0, arduino-app, ESP8266Audio, --baud 115200) |
+| `hints` | ✅ | ✅ | transversal en todos los proyectos reales |
+
+**Leyenda:**
+- ✅ Tests unitarios = fixtures en `tests/conftest.py` + suite `test_<adaptador>.py`
+- ✅ Proyecto real = salida verificada manualmente contra un proyecto en `/Users/kenny/Documents/Projects/`
+- — = solo fixtures (no hay proyecto propio de ese stack disponible para validar)
+
+---
 
 project-ai — stdlib Python ≥ 3.11 · `uv run pytest -q` para verificar · Solo escribe en `.project-ai/` y `AGENTS.md`

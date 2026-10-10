@@ -221,9 +221,34 @@ Hecho y con tests (538 pasando):
   `TargetFramework=net8.0-windows` → aviso "solo compila en windows. No compila en macOS/Linux".
   Fix validado contra `liblogicalaccess-samples-csharp` real.
 
-**976 tests. Stacks cubiertos: Maven/Spring, CMake/C++, Conan, Python, .NET, Gradle/Android, JS/TS, Flutter/Dart, Go, Rust, Make. SQL: PostgreSQL.**
+- `project_ai/adapters/unity.py` — detecta Unity vía `ProjectSettings/ProjectVersion.txt`;
+  versión Unity EXPLICIT; pipeline URP/HDRP/Built-in desde `Packages/manifest.json`;
+  servicios Firebase/UGS/Nakama; kind=unity-game; comandos Unity -batchmode test/build + nota Hub.
+- `project_ai/adapters/platformio.py` — detecta PlatformIO vía `platformio.ini`;
+  platform/board/framework/lib_deps/monitor_speed por sección `[env:xxx]` (configparser stdlib);
+  kind por framework (arduino-app/espidf-app/zephyr-app/…); múltiples envs → múltiples módulos;
+  comandos pio pkg install/run/test/run --target upload/device monitor (con --baud si monitor_speed).
+- `project_ai/scanner.py` (fix) — `_inject_ignored_manifests` añade `platformio.ini` y
+  `ProjectSettings/ProjectVersion.txt` a la lista de manifiestos inyectados si están en disco.
+
+- `project_ai/adapters/flutter.py` (fix monorepo) — `detect()` y `analyze()` buscan el `pubspec.yaml`
+  más superficial si no hay uno en la raíz; computan `pub_prefix`/`pub_slash` para ajustar detección
+  de plataformas, rutas dart y `cwd` en comandos. Validado contra `beex.mobile.app`.
+- `project_ai/adapters/python.py` (fix uv sin lockfile) — `_detect_package_manager()` detecta `uv`
+  a prioridad BUILD cuando el `pyproject.toml` tiene sección `[tool.uv]` aunque no haya `uv.lock`.
+  Validado contra `fmc-server-webapi`.
+- `project_ai/adapters/python.py` (uv workspace + fix main script) — `_parse_uv_workspace()`: lee
+  `[tool.uv.workspace].members` del pyproject.toml raíz y crea un `Module` por cada miembro (kind
+  `app` si tiene `[project.scripts]`, `library` si no). `_find_main_script()` ahora prioriza por
+  profundidad y nombre canónico (`main.py > app.py > cli.py`) y excluye rutas con indicadores de
+  basura (`delete_after/`, `.egg-info/`, etc.). En workspaces raíz sin framework, no se emite `run`.
+  Validado contra `py-libraries` (uv workspace con 3 miembros).
+
+**1040 tests. Stacks cubiertos: Maven/Spring, CMake/C++, Conan, Python, .NET, Gradle/Android, JS/TS, Flutter/Dart, Go, Rust, Make, Unity, PlatformIO. SQL: PostgreSQL.**
 Validados en proyectos reales: netclient (C++), hmdm (Spring), smartcard-go (Go), ws-servidor-tsir (TS/Express),
-beex-payment-queue (Spring Boot), app-gps-sib (Android), liblogicalaccess-samples-csharp (.NET/WinForms).
+beex-payment-queue (Spring Boot), app-gps-sib (Android), liblogicalaccess-samples-csharp (.NET/WinForms),
+beex.mobile.app (Flutter monorepo), fmc-server-webapi (Python uv+Artifactory),
+py-libraries (uv workspace monorepo, 3 miembros).
 Siguiente: Fase G (evaluación) o validar más stacks. Ver ROADMAP.
 
 ## Cómo trabajar en este repo

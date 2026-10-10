@@ -4,7 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from conftest import (
-    DJANGO_POETRY, FASTAPI_UV, FLASK_REQS, PYTHON_SETUP_PY, make_tree,
+    DJANGO_POETRY, FASTAPI_UV, FLASK_REQS, PYTHON_JUNK_MAINSCRIPT,
+    PYTHON_SETUP_PY, PYTHON_TOOL_UV_NO_LOCK, PYTHON_UV_WORKSPACE, make_tree,
 )
 from project_ai.adapters import run_adapters
 from project_ai.model import ProjectInfo
@@ -127,6 +128,17 @@ class TestPackageManager:
         info = _info(tmp_path, FLASK_REQS)
         pm = info.facts.get("python.package_manager")
         assert pm is not None and pm.value == "pip"
+
+    def test_tool_uv_without_lockfile_detects_uv(self, tmp_path):
+        """[tool.uv] en pyproject.toml sin uv.lock → gestor uv BUILD."""
+        info = _info(tmp_path, PYTHON_TOOL_UV_NO_LOCK)
+        pm = info.facts.get("python.package_manager")
+        assert pm is not None and pm.value == "uv"
+
+    def test_tool_uv_command_uses_uv_sync(self, tmp_path):
+        info = _info(tmp_path, PYTHON_TOOL_UV_NO_LOCK)
+        assert "deps" in info.commands
+        assert "uv sync" in info.commands["deps"].shell
 
 
 # --------------------------------------------------------------------------
@@ -283,3 +295,57 @@ class TestReconIntegration:
         make_tree(tmp_path, FASTAPI_UV)
         info = recon(tmp_path, only=["python"], write=False)
         assert any(s.adapter == "python" for s in info.stacks)
+
+
+# --------------------------------------------------------------------------
+# uv workspace monorepo
+# --------------------------------------------------------------------------
+
+class TestUvWorkspace:
+    def test_workspace_modules_detected(self, tmp_path):
+        """[tool.uv.workspace] members → módulos detectados."""
+        info = _info(tmp_path, PYTHON_UV_WORKSPACE)
+        names = [m.name for m in info.modules]
+        assert "my-cli" in names
+        assert "my-shared-lib" in names
+
+    def test_workspace_app_module_kind(self, tmp_path):
+        """Miembro con [project.scripts] → kind 'app'."""
+        info = _info(tmp_path, PYTHON_UV_WORKSPACE)
+        m = next(m for m in info.modules if m.name == "my-cli")
+        assert m.kind == "app"
+
+    def test_workspace_lib_module_kind(self, tmp_path):
+        """Miembro sin scripts → kind 'library'."""
+        info = _info(tmp_path, PYTHON_UV_WORKSPACE)
+        m = next(m for m in info.modules if m.name == "my-shared-lib")
+        assert m.kind == "library"
+
+    def test_workspace_module_paths(self, tmp_path):
+        info = _info(tmp_path, PYTHON_UV_WORKSPACE)
+        paths = {m.path for m in info.modules}
+        assert "apps/my-cli" in paths
+        assert "libs/my-shared-lib" in paths
+
+    def test_workspace_uv_detected(self, tmp_path):
+        info = _info(tmp_path, PYTHON_UV_WORKSPACE)
+        pm = info.facts.get("python.package_manager")
+        assert pm is not None and pm.value == "uv"
+
+
+# --------------------------------------------------------------------------
+# _find_main_script: evitar archivos basura
+# --------------------------------------------------------------------------
+
+class TestFindMainScript:
+    def test_skips_delete_after_folder(self, tmp_path):
+        """Un archivo en delete_after/ no debe usarse como entry point."""
+        info = _info(tmp_path, PYTHON_JUNK_MAINSCRIPT)
+        if "run" in info.commands:
+            assert "delete_after" not in info.commands["run"].shell
+
+    def test_prefers_canonical_main(self, tmp_path):
+        """src/myapp/main.py debe elegirse sobre el archivo en delete_after/."""
+        info = _info(tmp_path, PYTHON_JUNK_MAINSCRIPT)
+        assert "run" in info.commands
+        assert "main.py" in info.commands["run"].shell

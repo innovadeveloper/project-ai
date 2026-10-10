@@ -25,7 +25,7 @@ import re
 import tomllib
 from pathlib import Path
 
-from ..model import (Command, Endpoint, EntryPoint, Fact, ProjectInfo,
+from ..model import (Command, Endpoint, EntryPoint, Fact, Module, ProjectInfo,
                      SourcePriority as P, StackDetection)
 from ..scanner import ProjectScanner
 from .base import Adapter, add_service, ev, register, req
@@ -192,7 +192,54 @@ def _parse_pyproject(sc: ProjectScanner, info: ProjectInfo) -> dict:
             file=module.replace(".", "/") + ".py",
         ))
 
+    # uv workspace: detecta miembros y crea un Module por cada uno
+    _parse_uv_workspace(sc, info, data)
+
     return data
+
+
+def _parse_uv_workspace(sc: ProjectScanner, info: ProjectInfo,
+                        root_data: dict) -> None:
+    """Si hay [tool.uv.workspace], crea un Module por cada miembro."""
+    members = root_data.get("tool", {}).get("uv", {}).get("workspace", {}).get("members", [])
+    if not members:
+        return
+
+    root = Path(sc.root)
+    for member_glob in members:
+        # Los miembros pueden ser globs ("apps/*") o rutas exactas ("libs/my-lib")
+        if "*" in member_glob:
+            # Expansión simple: buscar pyproject.toml en subdirectorios que coincidan
+            member_paths = [
+                str(p.parent.relative_to(root))
+                for p in root.glob(f"{member_glob}/pyproject.toml")
+                if (p.parent / "pyproject.toml").exists()
+            ]
+        else:
+            member_paths = [member_glob] if (root / member_glob / "pyproject.toml").exists() else []
+
+        for member_path in member_paths:
+            toml_rel = f"{member_path}/pyproject.toml"
+            text = sc.read_text(toml_rel)
+            if not text:
+                try:
+                    text = (root / toml_rel).read_text(encoding="utf-8", errors="replace")
+                except Exception:
+                    continue
+            try:
+                mdata = tomllib.loads(text)
+            except Exception:
+                continue
+
+            mproject = mdata.get("project", {})
+            mname = mproject.get("name") or Path(member_path).name
+            # Clasificar kind: library si no hay scripts ni main, app si tiene scripts
+            mscripts = mproject.get("scripts", {})
+            mkind = "library" if not mscripts else "app"
+            info.modules.append(Module(
+                name=mname, path=member_path,
+                build_system="uv", kind=mkind,
+            ))
 
 
 def _collect_deps(data: dict) -> list[str]:
@@ -312,6 +359,12 @@ def _detect_package_manager(sc: ProjectScanner, info: ProjectInfo,
         ev_src = ev("requirements.txt", None, "requirements.txt presente")
         info.set_fact("python.package_manager", Fact(
             value="pip", priority=P.BUILD, adapter=NAME, evidence=[ev_src]))
+    elif bool(pyproject_data.get("tool", {}).get("uv")):
+        # [tool.uv] presente en pyproject.toml sin uv.lock (p.ej. índice privado)
+        pm, install, run_prefix = "uv", "uv sync", "uv run"
+        ev_src = ev("pyproject.toml", None, "[tool.uv] presente")
+        info.set_fact("python.package_manager", Fact(
+            value="uv", priority=P.BUILD, adapter=NAME, evidence=[ev_src]))
     else:
         pm, install, run_prefix = "pip", "pip install -e .", ""
         ev_src = ev("setup.py" if has_setup_py else "pyproject.toml",
@@ -327,10 +380,12 @@ def _detect_package_manager(sc: ProjectScanner, info: ProjectInfo,
                   else P.HEURISTIC, adapter=NAME),
     ))
 
-    # Comando run — depende del framework
+    # Comando run — no aplica en workspaces raíz (sin framework ni entry point propio)
+    is_workspace_root = any(m.build_system == "uv" for m in info.modules)
     framework = info.facts.get("framework")
     fw = framework.value if framework else None
-    _add_run_command(info, fw, run_prefix, sc)
+    if not is_workspace_root or fw:
+        _add_run_command(info, fw, run_prefix, sc)
 
     # Test
     info.add_command(Command(
@@ -510,14 +565,34 @@ def _find_flask_app(sc: ProjectScanner) -> str:
     return "app"
 
 
+_JUNK_PATH_PARTS = {"delete_after", ".egg-info", "__pycache__", ".venv", "venv"}
+
 def _find_main_script(sc: ProjectScanner) -> str | None:
+    """Devuelve el script principal priorizando profundidad mínima y nombre canónico.
+
+    Evita paths que contengan indicadores de código basura o generado.
+    """
+    _PREFERRED_NAMES = ("main.py", "app.py", "cli.py", "run.py", "__main__.py")
+
+    candidates: list[tuple[int, int, str]] = []  # (depth, name_rank, path)
     for f in sc.files:
         if not f.endswith(".py"):
             continue
+        parts = set(Path(f).parts)
+        if parts & _JUNK_PATH_PARTS:
+            continue
         text = sc.read_text(f) or ""
-        if '__name__ == "__main__"' in text or "__name__ == '__main__'" in text:
-            return f
-    return None
+        if '__name__ == "__main__"' not in text and "__name__ == '__main__'" not in text:
+            continue
+        depth = f.count("/")
+        name = Path(f).name
+        name_rank = next((i for i, n in enumerate(_PREFERRED_NAMES) if n == name), len(_PREFERRED_NAMES))
+        candidates.append((depth, name_rank, f))
+
+    if not candidates:
+        return None
+    candidates.sort()
+    return candidates[0][2]
 
 
 def _next_func_name(text: str, pos: int) -> str | None:

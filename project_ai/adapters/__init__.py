@@ -16,7 +16,9 @@ from . import flutter     # Flutter / Dart
 from . import go          # Go (módulos go.mod)
 from . import rust        # Rust (Cargo.toml)
 from . import make        # Make (Makefile puro, sin CMakeLists)
+from . import unity       # Unity (C#, juegos/simulaciones)
+from . import platformio  # PlatformIO (C/C++ embebido: Arduino, ESP-IDF, Zephyr)
 
 __all__ = ["REGISTRY", "Adapter", "all_adapters", "register", "run_adapters",
            "hints", "maven", "cmake", "conan", "python", "dotnet", "gradle",
-           "javascript", "flutter", "go", "rust", "make"]
+           "javascript", "flutter", "go", "rust", "make", "unity", "platformio"]

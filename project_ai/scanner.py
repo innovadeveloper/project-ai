@@ -197,10 +197,16 @@ def _inject_ignored_manifests(root: Path, files: list[str]) -> None:
         "settings.gradle", "settings.gradle.kts",
         "CMakeLists.txt", "conanfile.py", "conanfile.txt",
         "pubspec.yaml", "Makefile", "global.json",
+        "platformio.ini",
     }
     for name in exact:
         if name not in existing and (root / name).is_file():
             files.append(name)
+    # Archivos en subdirectorio inmediato (Unity, etc.)
+    sub_paths = ["ProjectSettings/ProjectVersion.txt"]
+    for rel in sub_paths:
+        if rel not in existing and (root / rel).is_file():
+            files.append(rel)
     # .csproj y .sln en la raíz (extensión variable)
     for p in root.iterdir():
         if p.suffix in (".csproj", ".sln") and p.name not in existing:

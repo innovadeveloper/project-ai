@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from conftest import DART_PACKAGE, FLUTTER_APP, FLUTTER_PLUGIN, make_tree
+from conftest import DART_PACKAGE, FLUTTER_APP, FLUTTER_MONOREPO, FLUTTER_PLUGIN, make_tree
 from project_ai.adapters import run_adapters
 from project_ai.model import ProjectInfo, SourcePriority
 from project_ai.recon import recon
@@ -276,3 +276,58 @@ class TestReconIntegration:
         recon(tmp_path, write=True)
         info = ProjectInfo.load(tmp_path / ".project-ai" / "project.json")
         assert "dart" in info.requirements
+
+
+# --------------------------------------------------------------------------
+# Monorepo: pubspec.yaml en subdirectorio
+# --------------------------------------------------------------------------
+
+class TestMonorepo:
+    def test_flutter_detected_in_subdir(self, tmp_path):
+        """pubspec.yaml en beex_mobile/ → flutter se detecta igual."""
+        info = _info(tmp_path, FLUTTER_MONOREPO)
+        assert any(s.adapter == "flutter" for s in info.stacks)
+
+    def test_dart_version_from_subdir(self, tmp_path):
+        info = _info(tmp_path, FLUTTER_MONOREPO)
+        assert "dart" in info.requirements
+        assert info.requirements["dart"].value == "3.0.0"
+
+    def test_flutter_version_from_subdir(self, tmp_path):
+        info = _info(tmp_path, FLUTTER_MONOREPO)
+        assert "flutter" in info.requirements
+        assert info.requirements["flutter"].value == "3.16.0"
+
+    def test_flutter_app_kind_in_subdir(self, tmp_path):
+        info = _info(tmp_path, FLUTTER_MONOREPO)
+        kinds = [m.kind for m in info.modules]
+        assert "flutter-app" in kinds
+
+    def test_android_platform_detected_in_subdir(self, tmp_path):
+        info = _info(tmp_path, FLUTTER_MONOREPO)
+        plat = info.facts.get("flutter.platforms")
+        assert plat is not None
+        assert "android" in plat.value
+
+    def test_ios_platform_detected_in_subdir(self, tmp_path):
+        info = _info(tmp_path, FLUTTER_MONOREPO)
+        plat = info.facts.get("flutter.platforms")
+        assert plat is not None
+        assert "ios" in plat.value
+
+    def test_firebase_service_from_subdir(self, tmp_path):
+        info = _info(tmp_path, FLUTTER_MONOREPO)
+        kinds = [s.kind for s in info.services]
+        assert "firebase" in kinds
+
+    def test_commands_have_cwd_in_subdir(self, tmp_path):
+        """Comandos flutter deben indicar cwd=beex_mobile."""
+        info = _info(tmp_path, FLUTTER_MONOREPO)
+        assert "run" in info.commands
+        assert info.commands["run"].cwd == "beex_mobile"
+
+    def test_gradle_not_overrides_flutter_in_monorepo(self, tmp_path):
+        """El adaptador gradle del android/ no debe ganar sobre flutter."""
+        info = _info(tmp_path, FLUTTER_MONOREPO)
+        assert "run" in info.commands
+        assert "flutter" in info.commands["run"].shell

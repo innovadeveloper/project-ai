@@ -129,7 +129,14 @@ class FlutterAdapter(Adapter):
     name = NAME
 
     def detect(self, sc: ProjectScanner) -> list[StackDetection]:
+        # Preferir raíz; fallback al pubspec.yaml más superficial (monorepo)
         pkg = next((f for f in sc.files if f == "pubspec.yaml"), None)
+        if pkg is None:
+            pkg = min(
+                (f for f in sc.files if Path(f).name == "pubspec.yaml"),
+                key=lambda f: f.count("/"),
+                default=None,
+            )
         if pkg:
             return [StackDetection(adapter=NAME, confidence=0.97,
                                    evidence=[ev(pkg, None)])]
@@ -139,10 +146,21 @@ class FlutterAdapter(Adapter):
                 detections: list[StackDetection]) -> None:
         root = Path(sc.root)
 
-        # Leer pubspec.yaml
+        # Buscar pubspec.yaml: raíz primero; luego el más superficial (monorepo)
         pkg_rel = next((f for f in sc.files if f == "pubspec.yaml"), None)
+        if pkg_rel is None:
+            pkg_rel = min(
+                (f for f in sc.files if Path(f).name == "pubspec.yaml"),
+                key=lambda f: f.count("/"),
+                default=None,
+            )
         if not pkg_rel:
             return
+
+        # Prefijo del directorio que contiene pubspec.yaml (vacío si está en la raíz)
+        _par = str(Path(pkg_rel).parent)
+        pub_prefix = "" if _par == "." else _par
+        pub_slash  = f"{pub_prefix}/" if pub_prefix else ""
         try:
             pkg_text = (root / pkg_rel).read_text(encoding="utf-8", errors="replace")
         except Exception:
@@ -188,7 +206,7 @@ class FlutterAdapter(Adapter):
         # ----------------------------------------------------------------
         platforms = [
             p for p in _PLATFORMS
-            if any(f.startswith(f"{p}/") for f in sc.files)
+            if any(f.startswith(f"{pub_slash}{p}/") for f in sc.files)
         ]
         if platforms:
             info.set_fact("flutter.platforms", Fact(
@@ -209,23 +227,24 @@ class FlutterAdapter(Adapter):
         # Rutas GoRouter (solo apps Flutter)
         # ----------------------------------------------------------------
         if kind == "flutter-app":
-            self._extract_routes(root, sc, info)
+            self._extract_routes(root, sc, info, pub_slash)
 
         # ----------------------------------------------------------------
         # Comandos
         # ----------------------------------------------------------------
         is_flutter = pub["has_flutter_section"]
-        self._add_commands(info, is_flutter, kind, platforms)
+        self._add_commands(info, is_flutter, kind, platforms,
+                           cwd=pub_prefix or None)
 
     # ----------------------------------------------------------------
     # Rutas GoRouter / Navigator
     # ----------------------------------------------------------------
 
     def _extract_routes(self, root: Path, sc: ProjectScanner,
-                         info: ProjectInfo) -> None:
+                         info: ProjectInfo, pub_slash: str = "") -> None:
         dart_files = [
             f for f in sc.files
-            if f.endswith(".dart") and f.startswith("lib/")
+            if f.endswith(".dart") and f.startswith(f"{pub_slash}lib/")
         ]
         seen: set[str] = set()
         for rel in dart_files:
@@ -270,15 +289,16 @@ class FlutterAdapter(Adapter):
     # ----------------------------------------------------------------
 
     def _add_commands(self, info: ProjectInfo, is_flutter: bool,
-                       kind: str, platforms: list[str]) -> None:
+                       kind: str, platforms: list[str],
+                       cwd: str | None = None) -> None:
         if not is_flutter:
             # Paquete Dart puro
             info.add_command(Command(
-                name="deps", shell="dart pub get",
+                name="deps", shell="dart pub get", cwd=cwd,
                 success_hint="Got dependencies!",
             ), overwrite=True)
             info.add_command(Command(
-                name="test", shell="dart test",
+                name="test", shell="dart test", cwd=cwd,
                 success_hint="All tests passed!",
             ), overwrite=True)
             return
@@ -287,16 +307,16 @@ class FlutterAdapter(Adapter):
         # fuente de verdad; el adaptador gradle del subdirectorio android/ no
         # debe ganar cuando conviven ambos stacks en el mismo proyecto.
         info.add_command(Command(
-            name="deps", shell="flutter pub get",
+            name="deps", shell="flutter pub get", cwd=cwd,
             success_hint="Got dependencies!",
         ), overwrite=True)
         info.add_command(Command(
-            name="run", shell="flutter run",
+            name="run", shell="flutter run", cwd=cwd,
             ide_hint="Android Studio / VS Code: Run → Flutter Run",
             success_hint="Syncing files to device",
         ), overwrite=True)
         info.add_command(Command(
-            name="test", shell="flutter test",
+            name="test", shell="flutter test", cwd=cwd,
             success_hint="All tests passed!",
         ), overwrite=True)
 
@@ -304,6 +324,6 @@ class FlutterAdapter(Adapter):
             # Comando de build: APK si hay Android, iOS si solo iOS
             target = "apk" if "android" in platforms else "ios"
             info.add_command(Command(
-                name="build", shell=f"flutter build {target}",
+                name="build", shell=f"flutter build {target}", cwd=cwd,
                 success_hint="Built build/",
             ), overwrite=True)
