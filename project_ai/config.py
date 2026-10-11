@@ -31,7 +31,7 @@ CONFIG_FILE = "config.toml"
 class NodeConfig:
     """Configuración de un nodo Ollama."""
     url: str     = "http://localhost:11434"
-    model: str   = "llama3.2:3b"
+    model: str   = "qwen2.5-coder:7b" # "llama3.2:3b"
     timeout: int = 60
     num_ctx: int = 4096
 

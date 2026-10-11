@@ -263,3 +263,190 @@ ollama pull qwen2.5-coder:14b
 ---
 
 project-ai — stdlib Python ≥ 3.11 · `uv run pytest -q` para verificar · Solo escribe en `.project-ai/` y `AGENTS.md`
+
+## ⑩ Arquitectura cliente-servidor (vista de dependencias)
+
+### Diagrama simplificado
+
+```mermaid
+flowchart TD
+    subgraph MAC["🖥️ Cliente (Mac / Windows / Linux)"]
+        OC["OpenCode"]
+        SER["Serena MCP"]
+        LSP["LSP<br/>(jdtls, gopls, etc.)"]
+        PROJ["📁 Proyecto Local"]
+
+        OC -- "stdio (MCP)" --> SER
+        SER -- "stdio (LSP)" --> LSP
+        LSP -- "lee archivos" --> PROJ
+    end
+
+    subgraph LINUX["🐧 Servidor (Linux + GPU)"]
+        OLL["Ollama<br/>(qwen2.5-coder:14b / 7b)"]
+        GPU["🎮 GPU NVIDIA"]
+        OLL --> GPU
+    end
+
+    OC -- "HTTP :11434 (LLM)" --> OLL
+
+    style MAC fill:#e8f4fd,stroke:#2196f3,stroke-width:2px
+    style LINUX fill:#fff3e0,stroke:#ff9800,stroke-width:2px
+    style OC fill:#bbdefb,stroke:#1976d2
+    style SER fill:#c8e6c9,stroke:#388e3c
+    style LSP fill:#c8e6c9,stroke:#388e3c
+    style PROJ fill:#f5f5f5,stroke:#616161
+    style OLL fill:#ffe0b2,stroke:#f57c00
+    style GPU fill:#ffccbc,stroke:#e64a19
+
+```
+
+### Puntos clave
+
+| Componente | Dónde corre | Rol |
+| --- | --- | --- |
+| **OpenCode** | Cliente | Interfaz de usuario y orquestador del agente |
+| **Serena MCP** | Cliente | Servidor MCP local con herramientas semánticas |
+| **LSPs** | Cliente | Análisis semántico por lenguaje (invocados por Serena) |
+| **Proyecto** | Cliente | Código fuente clonado localmente |
+| **Ollama** | Servidor | Inferencia LLM centralizada con GPU |
+
+- **Serena nunca sale del cliente**: se ejecuta localmente y accede a los archivos del proyecto.
+- **Los LSPs viven en el cliente**: Serena los lanza bajo demanda, pero deben estar instalados localmente.
+- **Ollama es el único servicio remoto**: servicio de red puro, sin acceso al sistema de archivos del cliente.
+- **Cada cliente es autónomo**: tiene su propio Serena, sus propios LSPs, y su propio proyecto.
+- **El servidor solo aporta cómputo de GPU**: centraliza la inferencia para no cargar cada cliente con modelos de 9 GB.
+
+
+## ⑪ Instalación de LSPs por plataforma
+
+### macOS (Apple Silicon / Intel)
+
+```bash
+# Java (jdtls) — requiere Java 21+
+brew install jdtls
+
+# Go (gopls)
+go install golang.org/x/tools/gopls@latest
+# Asegurar PATH:
+echo 'export PATH="$PATH:$HOME/go/bin"' >> ~/.zshrc
+source ~/.zshrc
+
+# Rust (rust-analyzer)
+brew install rust-analyzer
+# Alternativa vía rustup:
+# rustup component add rust-analyzer
+
+# C/C++ (clangd)
+brew install llvm
+
+# TypeScript/JavaScript (tsserver)
+npm install -g typescript typescript-language-server
+
+# Python (pyright)
+uv tool install pyright
+
+# C#/.NET (csharp-ls)
+brew install --cask dotnet-sdk
+dotnet tool install -g csharp-ls
+# Asegurar PATH:
+echo 'export PATH="$PATH:$HOME/.dotnet/tools"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+### Ubuntu / Debian (Linux)
+
+```bash
+# Java (jdtls) — requiere Java 21+
+# NO está en apt; descargar el tarball oficial:
+mkdir -p ~/.local/share/jdtls
+cd ~/Downloads
+curl -LO https://download.eclipse.org/jdtls/milestones/1.40.0/jdt-language-server-1.40.0-202409261450.tar.gz
+tar -xzf jdt-language-server-1.40.0-202409261450.tar.gz -C ~/.local/share/jdtls
+echo 'export PATH="$HOME/.local/share/jdtls/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# Go (gopls)
+sudo snap install go --classic
+go install golang.org/x/tools/gopls@latest
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# Rust (rust-analyzer)
+sudo snap install rustup --classic
+rustup install stable
+rustup component add rust-analyzer
+
+# C/C++ (clangd)
+sudo apt install clangd
+
+# TypeScript/JavaScript (tsserver)
+# Instalar Node 22+ vía nvm (recomendado):
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+source ~/.zshrc
+nvm install 22
+nvm use 22
+npm install -g typescript typescript-language-server
+
+# Python (pyright)
+uv tool install pyright
+
+# C#/.NET (csharp-ls)
+sudo apt install dotnet-sdk-8.0
+dotnet tool install -g csharp-ls --version 0.14.0
+echo 'export PATH="$PATH:$HOME/.dotnet/tools"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+### Windows
+
+```powershell
+# Java (jdtls) — requiere Java 21+
+# Descargar el tarball oficial desde:
+# https://download.eclipse.org/jdtls/milestones/1.40.0/
+# Extraer en C:\tools\jdtls y añadir C:\tools\jdtls\bin al PATH
+
+# Go (gopls)
+winget install GoLang.Go
+go install golang.org/x/tools/gopls@latest
+# Añadir %USERPROFILE%\go\bin al PATH del sistema
+
+# Rust (rust-analyzer)
+winget install Rustlang.Rustup
+rustup component add rust-analyzer
+
+# C/C++ (clangd)
+winget install LLVM.LLVM
+
+# TypeScript/JavaScript (tsserver)
+winget install OpenJS.NodeJS
+npm install -g typescript typescript-language-server
+
+# Python (pyright)
+# Instalar uv primero:
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+uv tool install pyright
+
+# C#/.NET (csharp-ls)
+winget install Microsoft.DotNet.SDK.8
+dotnet tool install -g csharp-ls
+# Añadir %USERPROFILE%\.dotnet\tools al PATH
+```
+
+### Verificación universal (todas las plataformas)
+
+Después de instalar, verifica que todos los LSPs estén en el PATH:
+
+```bash
+which jdtls gopls rust-analyzer pyright clangd typescript-language-server csharp-ls
+```
+
+Cada uno debe devolver una ruta válida. Si alguno no aparece, revisa el PATH correspondiente.
+
+### Notas importantes
+
+- **Serena los invoca automáticamente**: una vez que los binarios están en el PATH, Serena los lanza bajo demanda según el lenguaje del proyecto abierto.
+- **No todos son obligatorios**: instala solo los que necesites según tus proyectos.
+- **Java 21+ es requisito estricto** para jdtls en todas las plataformas.
+- **Node 22+ es requisito** para `typescript-language-server` v6+.
+- **`csharp-ls` versión 0.14.0** es la última compatible con .NET 8 SDK. Para versiones más recientes necesitas .NET 10.
+```
