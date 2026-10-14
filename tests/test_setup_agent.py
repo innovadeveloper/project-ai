@@ -154,17 +154,44 @@ class TestOpencodeConfig:
         assert "--lsp-binary" in args
         assert args[args.index("--lsp-binary") + 1] == "gopls"
 
-    def test_model_uses_ollama_prefix(self, tmp_path):
+    def test_model_uses_llamacpp_prefix(self, tmp_path):
         cfg = _default_config()
         md = _generate(tmp_path, ["rust"], cfg)
         data = self._extract_json(md)
-        assert data["model"].startswith("ollama/")
+        assert data["model"].startswith("llamacpp/")
 
     def test_mcp_serena_enabled(self, tmp_path):
         cfg = _default_config()
         md = _generate(tmp_path, ["go"], cfg)
         data = self._extract_json(md)
         assert data["mcp"]["serena"]["enabled"] is True
+
+    def test_plugin_field_present(self, tmp_path):
+        cfg = _default_config()
+        md = _generate(tmp_path, ["rust"], cfg)
+        data = self._extract_json(md)
+        assert "opencode-ollama-toolcall-proxy" in data["plugin"]
+
+    def test_instructions_field_present(self, tmp_path):
+        cfg = _default_config()
+        md = _generate(tmp_path, ["maven"], cfg)
+        data = self._extract_json(md)
+        assert ".project-ai/notes.md" in data["instructions"]
+
+    def test_providers_linux_mac_llamacpp(self, tmp_path):
+        cfg = _default_config()
+        md = _generate(tmp_path, ["go"], cfg)
+        data = self._extract_json(md)
+        assert "linux" in data["provider"]
+        assert "mac" in data["provider"]
+        assert "llamacpp" in data["provider"]
+
+    def test_permission_field_present(self, tmp_path):
+        cfg = _default_config()
+        md = _generate(tmp_path, ["go"], cfg)
+        data = self._extract_json(md)
+        assert data["permission"]["edit"] == "ask"
+        assert data["permission"]["bash"]["grep *"] == "allow"
 
 
 # --------------------------------------------------------------------------

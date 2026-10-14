@@ -264,10 +264,10 @@ class TestFinalize:
         finalize(tmp_path, write=True)
         assert (tmp_path / AGENTS_FILE).exists()
 
-    def test_agents_md_has_runbook_pointer(self, tmp_path):
+    def test_agents_md_has_repo_map_pointer(self, tmp_path):
         make_tree(tmp_path, HMDM)
         result = finalize(tmp_path, write=False)
-        assert "RUNBOOK.md" in result.agents_md
+        assert "repo-map.md" in result.agents_md
 
     def test_verified_empty_when_no_logs(self, tmp_path):
         make_tree(tmp_path, HMDM)

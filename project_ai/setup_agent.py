@@ -233,14 +233,63 @@ def _generate(root: Path, stacks: list[str], config) -> str:
 
 def _opencode_config(root: Path, n1_url: str, n1_model: str,
                      mcp_args: list[str]) -> dict:
-    """Config combinada: modelo + Ollama + lsp:true + Serena MCP."""
+    """Config combinada: proveedores Ollama/llamacpp + plugin + instrucciones + Serena MCP."""
     return {
-        "$schema": "https://opencode.ai/config.schema.json",
-        "model": f"ollama/{n1_model}",
+        "$schema": "https://opencode.ai/config.json",
+        "model": "llamacpp/qwen3.6-35b",
+        "plugin": [
+            "opencode-ollama-toolcall-proxy"
+        ],
+        "instructions": [
+            ".project-ai/notes.md"
+        ],
         "provider": {
-            "ollama": {
-                "type": "ollama",
-                "url": n1_url,
+            "linux": {
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "Ollama Linux",
+                "options": {
+                    "baseURL": "http://178.156.133.161:9008/v1"
+                },
+                "models": {
+                    "qwen3:14b-20k": {
+                        "name": "Qwen3 14B 20K (Linux)",
+                        "limit": {"context": 20480, "output": 4096}
+                    },
+                    "qwen3:14b-16k": {
+                        "name": "Qwen3 14B 16K (Linux)",
+                        "limit": {"context": 16384, "output": 4096}
+                    }
+                }
+            },
+            "mac": {
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "Ollama Mac",
+                "options": {
+                    "baseURL": "http://localhost:11434/v1"
+                },
+                "models": {
+                    "qwen3-coder:30b-64k": {
+                        "name": "Qwen3 Coder 30B 64K (Mac)",
+                        "limit": {"context": 65536, "output": 8192}
+                    }
+                }
+            },
+            "llamacpp": {
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "llama.cpp Linux",
+                "options": {
+                    "baseURL": "http://192.168.0.50:8080/v1"
+                },
+                "models": {
+                    "qwen3-coder-30b": {
+                        "name": "Qwen3 Coder 30B MoE (Linux)",
+                        "limit": {"context": 65536, "output": 8192}
+                    },
+                    "qwen3.6-35b": {
+                        "name": "Qwen3.6 35B MoE (Linux)",
+                        "limit": {"context": 65536, "output": 8192}
+                    }
+                }
             }
         },
         "lsp": True,
@@ -251,6 +300,17 @@ def _opencode_config(root: Path, n1_url: str, n1_model: str,
                 "enabled": True,
             }
         },
+        "permission": {
+            "edit": "ask",
+            "bash": {
+                "grep *": "allow",
+                "find *": "allow",
+                "ls *": "allow",
+                "git diff*": "allow",
+                "git status*": "allow",
+                "*": "ask"
+            }
+        }
     }
 
 

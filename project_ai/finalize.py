@@ -340,15 +340,29 @@ def _generate_agents_md(
     nav_lines = [
         "- `.project-ai/repo-map.md` — mapa compacto de símbolos (clases, firmas)",
         "- `.project-ai/project.json` — datos completos del proyecto con evidencia",
-        "- `.project-ai/env-report.md` — estado del entorno en esta máquina",
-        "- `.project-ai/RUNBOOK.md` — pasos para levantar el proyecto",
-        "- `.project-ai/journal.md` — historial de diagnósticos (triage)",
     ]
     if (root / OUTPUT_DIR / "schema-map.md").exists():
         nav_lines.append(
             "- `.project-ai/schema-map.md` — esquema SQL (tablas, vistas, funciones)"
         )
     lines += ["## 6. Navegación", ""] + nav_lines + [""]
+
+    # --- Reglas de Trabajo --------------------------------------------------
+    lines += [
+        "## Reglas de Trabajo (Prioridad Alta)",
+        "",
+        "- **Transparencia**: Si tu respuesta se basa en una lectura parcial, dilo explícitamente.",
+        "- **Firma de métodos**: Antes de modificar un método, cita su firma actual tal como aparece en el archivo.",
+        "- **Sugerir ≠ Aplicar**: Cuando propongas cambios de código, pregunta explícitamente si debo pedirte que los apliques con edit/write, o si solo quieres mostrarlos.",
+        "- **Verificación previa**: Antes de proponer código nuevo, verifica si ya existe algo similar en el proyecto (grep de clases/dependencias relacionadas).",
+        "- Responde siempre en español.",
+        "- No afirmes formatos, valores, topics ni payloads sin haber leído el código que los genera. Cita archivo y línea.",
+        "- **Lectura completa obligatoria**: Antes de listar, resumir o modificar un archivo, léelo COMPLETO.",
+        "  Solo usa offset/limit si el archivo supera las 500 líneas, y en ese caso,",
+        "  sigue leyendo en bloques consecutivos hasta el final.",
+        "  NUNCA saltes a un offset arbitrario sin haber leído el rango anterior completo.",
+        "",
+    ]
 
     text = "\n".join(lines)
     return text
